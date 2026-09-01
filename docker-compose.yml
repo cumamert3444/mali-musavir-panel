@@ -1,0 +1,68 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: mali_musavir_panel
+      POSTGRES_USER: panel_user
+      POSTGRES_PASSWORD: panel_pass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  web:
+    build: .
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    volumes:
+      - .:/app
+      - media_data:/app/media
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://panel_user:panel_pass@db:5432/mali_musavir_panel
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - db
+      - redis
+
+  celery_worker:
+    build: .
+    command: celery -A config worker -l info
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://panel_user:panel_pass@db:5432/mali_musavir_panel
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - db
+      - redis
+
+  celery_beat:
+    build: .
+    command: celery -A config beat -l info
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://panel_user:panel_pass@db:5432/mali_musavir_panel
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  postgres_data:
+  media_data:

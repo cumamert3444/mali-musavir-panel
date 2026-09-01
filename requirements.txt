@@ -1,0 +1,26 @@
+# Web framework & API
+Django>=5.0,<5.3
+djangorestframework>=3.15,<3.16
+djangorestframework-simplejwt>=5.3,<5.4
+drf-spectacular>=0.27,<0.28
+django-cors-headers>=4.4,<4.5
+django-filter>=24.2,<24.4
+
+# Settings / env
+python-decouple>=3.8,<3.9
+
+# Database
+psycopg2-binary>=2.9,<2.10 ; sys_platform != "win32"
+dj-database-url>=2.2,<2.3
+
+# Async tasks / scheduled reminders
+celery>=5.4,<5.5
+redis>=5.0,<5.1
+django-celery-beat>=2.7,<2.8
+
+# Static files (prod)
+whitenoise>=6.7,<6.8
+gunicorn>=22.0,<23.0
+
+# Dev / quality
+django-extensions>=3.2,<3.3
