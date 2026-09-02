@@ -1,6 +1,9 @@
+from rest_framework import viewsets
 from rest_framework.exceptions import PermissionDenied
 
+from apps.core.models import AuditLog
 from apps.core.permissions import HasActiveOffice
+from apps.core.serializers import AuditLogSerializer
 from apps.core.tenant import office_access_allowed, resolve_office
 
 
@@ -31,3 +34,18 @@ class TenantScopedViewSetMixin:
 
     def perform_create(self, serializer):
         serializer.save(office=self.request.office)
+
+
+class AuditLogViewSet(TenantScopedViewSetMixin, viewsets.ReadOnlyModelViewSet):
+    """Ofisin kendi aktivite gunlugu -- salt okunur (Hattat Musavir'deki
+    'Raporlar -> Islem Raporlari' ekranindan ilhamla, bkz. proje notlari).
+
+    `AuditLog` bir `TenantScopedModel` degil (super admin tum ofisleri
+    gorebilmeli) ama `office` alani var; `TenantScopedViewSetMixin.get_queryset`
+    yine de dogru sekilde `office=request.office` ile filtreler."""
+
+    queryset = AuditLog.objects.select_related("actor").all()
+    serializer_class = AuditLogSerializer
+    filterset_fields = ["action", "model_name"]
+    search_fields = ["actor_label", "model_name", "object_id", "path"]
+    ordering_fields = ["created_at"]

@@ -15,6 +15,8 @@ import { renderTasks } from "./pages/tasks.js";
 import { renderDeclarations } from "./pages/declarations.js";
 import { renderTaxDebts } from "./pages/taxDebts.js";
 import { renderPosReports } from "./pages/posReports.js";
+import { renderEInvoices } from "./pages/einvoices.js";
+import { renderBankStatements } from "./pages/bankStatements.js";
 import { renderDocuments } from "./pages/documents.js";
 import { renderLegalNotices } from "./pages/legalNotices.js";
 import { renderTeam } from "./pages/team.js";
@@ -87,6 +89,8 @@ async function boot() {
     .add("/declarations", renderDeclarations)
     .add("/tax-debts", renderTaxDebts)
     .add("/pos-reports", renderPosReports)
+    .add("/einvoices", renderEInvoices)
+    .add("/bank-statements", renderBankStatements)
     .add("/documents", renderDocuments)
     .add("/legal-notices", renderLegalNotices)
     .add("/team", renderTeam)

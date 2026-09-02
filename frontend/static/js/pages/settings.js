@@ -15,6 +15,7 @@ export async function renderSettings(rootEl) {
     <div class="tabs">
       <button data-tab="office" class="active" type="button">Ofis Bilgileri</button>
       <button data-tab="api" type="button">API Modu &amp; Anahtarlar</button>
+      <button data-tab="activity" type="button">Aktivite Günlüğü</button>
     </div>
     <div id="settings-tab-content"></div>
   `;
@@ -29,7 +30,8 @@ export async function renderSettings(rootEl) {
   function paintTab() {
     const tabEl = content.querySelector("#settings-tab-content");
     if (activeTab === "office") renderOfficeTab(tabEl);
-    else renderApiTab(tabEl);
+    else if (activeTab === "api") renderApiTab(tabEl);
+    else renderActivityTab(tabEl);
   }
   activeTab = "office";
   paintTab();
@@ -218,6 +220,85 @@ async function renderApiTab(el) {
   } catch (err) {
     toastError(err);
     el.innerHTML = `<div class="error-banner">Yüklenemedi.</div>`;
+  }
+}
+
+const ACTION_LABELS = {
+  create: "Oluşturuldu",
+  update: "Güncellendi",
+  delete: "Silindi",
+  login: "Giriş yapıldı",
+  login_failed: "Başarısız giriş",
+  api_access: "API erişimi",
+  other: "Diğer",
+};
+
+const ACTION_BADGE_COLOR = {
+  create: "green",
+  update: "blue",
+  delete: "red",
+  login: "green",
+  login_failed: "red",
+  api_access: "gray",
+  other: "gray",
+};
+
+let activityFilter = "";
+
+async function renderActivityTab(el) {
+  el.innerHTML = `<div class="loading-row">Yükleniyor...</div>`;
+  try {
+    const params = { page_size: 50, ordering: "-created_at" };
+    if (activityFilter) params.action = activityFilter;
+    const data = await api.get("/api/v1/audit-logs/", params);
+    const entries = data.results || data;
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <h2>Aktivite Günlüğü</h2>
+          <select id="activity-filter" style="max-width:220px;">
+            <option value="">Tüm işlemler</option>
+            ${Object.entries(ACTION_LABELS)
+              .map(([val, label]) => `<option value="${val}" ${activityFilter === val ? "selected" : ""}>${escapeHtml(label)}</option>`)
+              .join("")}
+          </select>
+        </div>
+        <p class="text-sm text-muted" style="padding:0 20px;">
+          Ofisinizde kim, ne zaman, hangi kaydı oluşturdu/güncelledi/sildi — en yeniler üstte, son 50 kayıt.
+        </p>
+        <div class="table-wrap">
+          ${
+            entries.length
+              ? `<table class="data-table">
+                  <thead><tr><th>Tarih</th><th>Kullanıcı</th><th>İşlem</th><th>Kayıt Türü</th><th>Yol</th></tr></thead>
+                  <tbody>
+                    ${entries
+                      .map(
+                        (e) => `<tr>
+                          <td>${datetimeTR(e.created_at)}</td>
+                          <td>${escapeHtml(e.actor_label || "—")}</td>
+                          <td><span class="badge badge-${ACTION_BADGE_COLOR[e.action] || "gray"}">${escapeHtml(e.action_display || ACTION_LABELS[e.action] || e.action)}</span></td>
+                          <td>${escapeHtml(e.model_name || "—")}</td>
+                          <td class="text-muted text-sm">${escapeHtml(e.method || "")} ${escapeHtml(e.path || "")}</td>
+                        </tr>`
+                      )
+                      .join("")}
+                  </tbody>
+                </table>`
+              : `<div class="empty-state"><h3>Henüz kayıtlı bir aktivite yok</h3></div>`
+          }
+        </div>
+      </div>
+    `;
+
+    el.querySelector("#activity-filter").addEventListener("change", (e) => {
+      activityFilter = e.target.value;
+      renderActivityTab(el);
+    });
+  } catch (err) {
+    toastError(err);
+    el.innerHTML = `<div class="error-banner">Aktivite günlüğü yüklenemedi.</div>`;
   }
 }
 

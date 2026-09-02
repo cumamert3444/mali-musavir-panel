@@ -61,6 +61,7 @@ export async function renderClientDetail(rootEl, params) {
         ${tabBtn("declarations", "Beyanname Abonelikleri")}
         ${tabBtn("employees", "Personel / Bordro")}
         ${tabBtn("statement", "Cari Hesap Ekstresi")}
+        ${tabBtn("shortcuts", "Kısayollar")}
       </div>
 
       <div id="tab-content"><div class="loading-row">Yükleniyor...</div></div>
@@ -86,6 +87,7 @@ export async function renderClientDetail(rootEl, params) {
     else if (activeTab === "declarations") renderDeclarations(tabEl, client);
     else if (activeTab === "employees") renderEmployees(tabEl, client);
     else if (activeTab === "statement") renderStatement(tabEl, client);
+    else if (activeTab === "shortcuts") renderShortcuts(tabEl, client);
   }
 
   function tabBtn(key, label) {
@@ -663,6 +665,118 @@ function openEmployeeForm(client, onSaved) {
       });
     },
   });
+}
+
+// ---------- Kısayollar (resmi portallara hızlı erişim, KİMLİK BİLGİSİ SAKLAMAZ) ----------
+//
+// Rakip ürünlerde (bkz. proje notları) her mükellef profilinde devlet
+// kurumlarına tek tıkla giden bir "Kısayollar" paneli var. Orada bu linkler
+// mükellefin VD/e-Devlet şifresiyle otomatik giriş de yapıyor gibi görünüyor
+// (masaüstü ajan uygulaması + saklanan şifre). Biz o modeli BİLEREK
+// uygulamıyoruz — hiçbir şifre/kimlik bilgisi saklamıyoruz. Bunun yerine
+// sadece doğru resmi portala tek tıkla gitmeyi ve VKN/TCKN'yi panodan
+// yapıştırmayı kolaylaştırıyoruz; girişi mali müşavir kendi bilgileriyle
+// yapar. Düşük risk, gerçek zaman tasarrufu.
+function buildQuickLinkGroups(client) {
+  const groups = [];
+
+  groups.push({
+    title: "Vergi Dairesi / GİB",
+    links: [
+      { label: "İnteraktif Vergi Dairesi", url: "https://ivd.gib.gov.tr/", note: "Vergi borcu, tahakkuk, ödeme sorgulama" },
+      { label: "Dijital Vergi Dairesi", url: "https://dijital.gib.gov.tr/", note: "GİB'in yeni nesil portalı" },
+      { label: "e-Beyanname", url: "https://ebeyanname.gib.gov.tr/", note: "Beyanname gönderim ekranı" },
+      { label: "GİB Ana Sayfa", url: "https://www.gib.gov.tr/" },
+    ],
+  });
+
+  const eBelgeLinks = [];
+  if (client.e_invoice_enabled) {
+    eBelgeLinks.push({ label: "e-Fatura Portalı", url: "https://portal.efatura.gov.tr/", note: "GİB e-Fatura Portalı" });
+    eBelgeLinks.push({ label: "e-Arşiv Portalı", url: "https://earsivportal.efatura.gov.tr/", note: "GİB e-Arşiv Portalı" });
+  }
+  if (client.e_ledger_enabled) {
+    eBelgeLinks.push({ label: "e-Defter Uygulaması", url: "https://edefter.gib.gov.tr/" });
+  }
+  if (eBelgeLinks.length) groups.push({ title: "e-Belge", links: eBelgeLinks });
+
+  groups.push({
+    title: "SGK",
+    links: [
+      { label: "SGK İşveren Sistemi (e-Bildirge)", url: "https://uyg.sgk.gov.tr/IsverenSistemi/", note: "Aylık prim/hizmet bildirgesi" },
+      { label: "SGK e-Devlet Hizmetleri", url: "https://www.turkiye.gov.tr/sosyal-guvenlik-kurumu" },
+    ],
+  });
+
+  const otherLinks = [{ label: "e-Devlet Kapısı", url: "https://www.turkiye.gov.tr/" }];
+  if (client.mersis_no) {
+    otherLinks.push({ label: "MERSİS", url: "https://mersis.gtb.gov.tr/", note: "Mersis No: " + client.mersis_no });
+  }
+  if (client.trade_registry_no) {
+    otherLinks.push({ label: "Ticaret Sicili Gazetesi", url: "https://www.ticaretsicil.gov.tr/" });
+  }
+  otherLinks.push({ label: "TOBB", url: "https://www.tobb.org.tr/" });
+  groups.push({ title: "Diğer", links: otherLinks });
+
+  return groups;
+}
+
+function renderShortcuts(el, client) {
+  const idNo = client.tax_number || "";
+  const groups = buildQuickLinkGroups(client);
+
+  el.innerHTML = `
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><h2>Hızlı Erişim</h2></div>
+      <div class="card-body">
+        <p class="text-sm text-muted" style="margin-top:0;">
+          Burada hiçbir şifre veya kimlik bilgisi saklanmaz. Aşağıdaki kısayollar sadece doğru resmi
+          portala hızlıca gitmenizi sağlar — girişi kendi bilgilerinizle siz yaparsınız.
+        </p>
+        <div class="flex gap-8" style="align-items:center;flex-wrap:wrap;">
+          <span class="text-sm"><strong>VKN/TCKN:</strong> ${escapeHtml(idNo || "—")}</span>
+          ${idNo ? `<button class="btn btn-ghost btn-sm" id="copy-tax-no-btn">${icons.copy} Kopyala</button>` : ""}
+        </div>
+      </div>
+    </div>
+    ${groups
+      .map(
+        (g) => `
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><h2>${escapeHtml(g.title)}</h2></div>
+        <div class="card-body">
+          <div class="shortcut-list">
+            ${g.links
+              .map(
+                (l) => `
+              <a class="shortcut-link" href="${l.url}" target="_blank" rel="noopener noreferrer">
+                <span class="shortcut-link-icon">${icons.link}</span>
+                <span class="shortcut-link-text">
+                  <span class="shortcut-link-label">${escapeHtml(l.label)}</span>
+                  ${l.note ? `<span class="shortcut-link-note">${escapeHtml(l.note)}</span>` : ""}
+                </span>
+                <span class="shortcut-link-ext">${icons.externalLink}</span>
+              </a>`
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>`
+      )
+      .join("")}
+  `;
+
+  const copyBtn = el.querySelector("#copy-tax-no-btn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(idNo);
+        toast("VKN/TCKN panoya kopyalandı.", "success");
+      } catch (err) {
+        toast("Kopyalanamadı, elle seçip kopyalayabilirsiniz.", "error");
+      }
+    });
+  }
 }
 
 function openPayrollForm(client, employeeId, onSaved) {

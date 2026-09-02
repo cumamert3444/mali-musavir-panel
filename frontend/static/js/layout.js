@@ -13,6 +13,8 @@ const NAV_ITEMS = [
   { path: "/declarations", label: "Beyannameler", icon: "declaration" },
   { path: "/tax-debts", label: "Borç Matrisi", icon: "chart" },
   { path: "/pos-reports", label: "POS/ÖKC", icon: "bank" },
+  { path: "/einvoices", label: "e-Fatura Kayıtları", icon: "invoice" },
+  { path: "/bank-statements", label: "Banka Ekstresi", icon: "bank" },
   { path: "/documents", label: "Evraklar", icon: "document" },
   { path: "/legal-notices", label: "e-Tebligatlar", icon: "alert" },
   { path: "/team", label: "Ekip", icon: "team" },

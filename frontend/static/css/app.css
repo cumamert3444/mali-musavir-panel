@@ -445,6 +445,20 @@ table.data-table tfoot td { padding: 10px 14px; font-weight: 700; }
 .kv-list .kv-item .k { color: var(--text-muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.02em; margin-bottom: 2px; }
 .kv-list .kv-item .v { font-weight: 600; }
 
+.shortcut-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.shortcut-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface); text-decoration: none; color: var(--text);
+  transition: border-color 0.15s, background 0.15s;
+}
+.shortcut-link:hover { border-color: var(--primary); background: var(--primary-light); }
+.shortcut-link-icon { color: var(--primary); flex-shrink: 0; }
+.shortcut-link-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.shortcut-link-label { font-size: 13px; font-weight: 600; }
+.shortcut-link-note { font-size: 11.5px; color: var(--text-muted); }
+.shortcut-link-ext { color: var(--text-faint); flex-shrink: 0; }
+
 .line-items { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
 .line-items th { text-align: left; font-size: 11.5px; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--border); }
 .line-items td { padding: 6px 8px; }

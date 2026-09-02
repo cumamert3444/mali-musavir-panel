@@ -150,6 +150,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/token/ \
 | `apps/core` | Ortak altyapi: tenant middleware, izinler, denetim kaydi, SEO, genel `spa_view`/`robots.txt`/`sitemap.xml`/`status` |
 | `apps/tax_debts` | Vergi/SGK borc matrisi (mukellef bazinda borc kayitlari + CSV toplu import) |
 | `apps/pos_sync` | POS/ÖKC gun sonu raporu senkronizasyonu (aylik ozet + CSV toplu import) |
+| `apps/einvoices` | e-Fatura/e-Arsiv/e-Irsaliye kayitlari (musteri bazinda konsolide liste + CSV/Excel toplu import) |
 | `apps/leads` | Herkese acik "Demo Isteyin" formundan gelen talepler (platform seviyesinde, tenant'a bagli degil) |
 
 Tum uc noktalarin tam listesi icin `/api/v1/docs/` (Swagger) adresine bakin.
@@ -172,6 +173,23 @@ kapsamin disindadir):
   kayitlarini mukellef bazinda konsolide tablo halinde gosterir.
 - **POS/OKC gun sonu senkronizasyonu** (`apps/pos_sync`): CSV import ile
   girilen gunluk POS raporlarini aylik ozetler.
+- **e-Fatura kayitlari** (`apps/einvoices`, 2026-09-02): GIB'in resmi
+  e-Fatura sistemine (ister dogrudan GIB portali, ister TURMOB'un ucretsiz
+  sundugu Luca e-Belge Portali uzerinden) gercek zamanli otomatik bir API
+  baglantisi **yoktur** -- arastirildi: Luca e-Belge Portali
+  (turmobefatura.luca.com.tr) bir insanin tarayicidan kullanici adi/sifre
+  ile giris yaptigi bir web portalidir, ucuncu parti yazilimlarin
+  baglanabilecegi genel/dokumante bir REST/SOAP API'si kamuya acik degildir;
+  TURMOB'un e-Birlik uzerinden verdigi "servis anahtari" esas olarak Luca
+  urunlerini birbirine baglamak ve VKN/TCKN sorgulamak icindir. Bu yuzden
+  kayitlar, Luca portalindan (veya kullanilan entegratorden -- Foriba,
+  Uyumsoft, QNB eFinans vb.) alinan fatura listesi Excel/CSV dokumunun elle
+  veya toplu CSV import ile buraya islenmesiyle olusturulur; panel bunlari
+  musteri bazinda, gelen/giden kirilimiyla konsolide bir listede gosterir.
+  Ileride gercek bir API erisimi (TURMOB servis anahtari veya bir
+  entegrator bayiligi) edinilirse, `apps/einvoices/views.py` icindeki ayni
+  ViewSet'e yeni bir `sync` action'i eklemek yeterli olur -- veri modeli ve
+  frontend zaten buna hazir.
 - **Otomatik ekstre gonderimi** (`apps/notifications/dispatch.py`): cari
   hesap ekstresini gercek bir PDF (reportlab) olarak uretir ve e-posta ile
   gonderir; WhatsApp gonderimi `WHATSAPP_PROVIDER_API_KEY` ortam degiskeni
@@ -305,46 +323,44 @@ ve KDV/Muhtasar beyanname takvimi olusturur.
 
 ## ONEMLI: Canli ortam (Railway) dagitim notu
 
-**2026-09-02 tarihinde tespit edilen, halen surmekte olan bir sorun:**
-canli sitede (Railway) veritabani tablolari hic olusturulmamisti; bu yuzden
+**2026-09-02 tarihinde tespit edilen sorun -- COZULDU.**
+Canli sitede (Railway) veritabani tablolari hic olusturulmamisti; bu yuzden
 giris/kayit istekleri `relation "accounts_user" does not exist` hatasiyla
-500 donduruyordu. Kok neden: Railway'in `preDeployCommand`/`startCommand`
-zincirinde `python manage.py makemigrations --noinput && ... migrate ...`
-calistirilirken, `makemigrations` adimi tum uygulamalarin migration planini
-yazdiktan hemen sonra (yaklasik 1-1.5 saniye icinde) sessizce sonlaniyor ve
-`migrate` adimina hic ulasilmiyordu -- 4 farkli deneme (preDeployCommand,
-startCommand, `||`/`;` ile hataya-dayanikli zincirler, `-v 2` ile ayrintili
-loglama) ayni sekilde basarisiz oldu. Bu davranisin tam nedeni (kaynak
-limiti / platform zaman asimi / baska bir sey) **kesin olarak
-dogrulanamadi** -- Postgres veri dizini dosya zaman damgalariyla dogrulandi:
-hicbir deploy denemesinde tablo olusturulmadi.
+500 donduruyordu.
 
-**Uygulanan kalici duzeltme:** `makemigrations` adimi artik **Docker build
-asamasinda** (bkz. `Dockerfile`, `RUN python manage.py makemigrations
---noinput -v 2 || true`) calistiriliyor -- bu adim, ayni Dockerfile'daki
-`collectstatic` adimi gibi, build sirasinda iki kez basariyla dogrulanmis
-guvenilir bir asamadir. Migration dosyalari artik imajin icine gomulur;
-container baslarken sadece daha hafif olan `migrate --noinput` calistirmasi
-yeterlidir (`startCommand`, bkz. Railway servis ayarlari). `preDeployCommand`
-bos birakildi; tum zincir artik `startCommand` icinde:
+**Gercek kok neden:** Railway servisi build sistemi olarak **Railpack**
+(Railway'in kendi otomatik build sistemi) kullaniyordu ve repodaki
+`Dockerfile`'i tamamen gormezden geliyordu. Yani Dockerfile'a eklenen
+`makemigrations` build-time duzeltmesi hicbir zaman gercekten calismiyordu
+-- Railpack kendi otomatik Python/Django tespitiyle build ediyordu, migration
+dosyalari hic uretilmiyordu ve `startCommand` icindeki `makemigrations`/
+`migrate` zinciri de Railpack'in runtime ortaminda sessizce cokuyor ya da
+asili kaliyordu.
+
+**Duzeltme:** Railway servis ayarlarinda `dockerfilePath: "Dockerfile"`
+set edilerek builder **RAILPACK'ten DOCKERFILE'a** cevrildi (Railway
+Dashboard: Service -> Settings -> Build -> Builder = Dockerfile; veya
+Railway MCP/CLI ile `dockerfilePath` alani). Bu, repodaki `Dockerfile`'in
+gercekten kullanilmasini sagliyor -- `makemigrations` artik build
+asamasinda calisiyor (bkz. `Dockerfile`), migration dosyalari imajin
+icine gomuluyor, ve container baslarken sadece `migrate --noinput`
+calistirmasi yeterli. Duzeltmeden sonra deploy loglarinda `migrate`'in
+tum uygulamalarin tablolarini (21 app) saniyeler icinde basariyla
+olusturdugu dogrulandi.
+
+**Guncel `startCommand`:**
 
 ```
-python manage.py makemigrations --noinput ; python manage.py migrate --noinput ; python manage.py seed_superadmin ; python manage.py collectstatic --noinput ; gunicorn config.wsgi:application --bind 0.0.0.0:8080 --workers 3
+python manage.py migrate --noinput && python manage.py seed_superadmin ; gunicorn config.wsgi:application --bind 0.0.0.0:8080 --workers 3
 ```
 
-**Bu depodaki kod bu duzeltmeyi icerir, ancak canli siteye yansimasi icin
-yeni kodun push+deploy edilmesi gerekir** (bkz. dosya teslimati notlari --
-bu ortamdan dogrudan `git push` yapilamiyor). Push'tan sonra Railway
-otomatik yeniden deploy edecek ve loglarda artik `migrate`'in
-`Operations to perform` / `Applying ... OK` satirlarini gormeniz gerekir.
-
-**Push'tan once giris/kayit'i hemen calistirmak isterseniz**, Railway CLI
-kurulup hesaba baglandiktan sonra tek seferlik su komutla veritabani elle
-duzeltilebilir (deploy gerektirmez):
-
-```bash
-railway ssh -s web -e production -- python manage.py migrate --noinput -v 2
-```
+**Onemli:** Bu, bir Railway servis ayaridir (kod degil) -- Railway
+Dashboard'da veya Railway MCP/CLI ile degistirilir, repo'ya `git push`
+gerektirmez. Bu depodaki `Dockerfile` zaten dogru sekilde yazilmis
+durumda; sorun hep Railway'in onu kullanip kullanmamasindaydi. Ileride
+projeyi yeni bir Railway servisine tasirsaniz veya servisi sifirdan
+kurarsaniz, **builder'in "Dockerfile" olarak ayarli oldugunu** (Railpack
+degil) mutlaka dogrulayin.
 
 **Ozel alan adi / SSL notu:** `www.musavirasistani.com` Railway'e ozel alan
 adi olarak eklenmis ve CNAME kaydi dogru sekilde yayilmis (propagated)

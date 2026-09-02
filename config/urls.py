@@ -51,6 +51,9 @@ urlpatterns = [
     path("api/v1/", include("apps.tax_debts.urls")),
     path("api/v1/", include("apps.pos_sync.urls")),
     path("api/v1/", include("apps.leads.urls")),
+    path("api/v1/", include("apps.einvoices.urls")),
+    path("api/v1/", include("apps.bank_statements.urls")),
+    path("api/v1/", include("apps.core.urls")),
 ]
 
 if settings.DEBUG:
