@@ -128,7 +128,12 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "frontend" / "static"]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+# Manifest'te olmayan bir dosyaya {% static %} ile referans verilirse hata
+# fırlatmak yerine olduğu gibi bırak -- vanilla JS modüllerinde bazı dosyalar
+# birbirini göreli (hashlenmemiş) yoldan import ediyor, bu tamamen beklenen.
+WHITENOISE_MANIFEST_STRICT = False
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"

@@ -1,0 +1,19 @@
+{% load static %}<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mali Müşavirlik Ofis Paneli</title>
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE0IiBmaWxsPSIjMjU2M2ViIi8+CjxwYXRoIGQ9Ik0xNiA0MCBMMTYgNDQgTDQ4IDQ0IEw0OCA0MCIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cmVjdCB4PSIxOCIgeT0iMzAiIHdpZHRoPSI3IiBoZWlnaHQ9IjEwIiByeD0iMS41IiBmaWxsPSIjZmZmZmZmIi8+CjxyZWN0IHg9IjI4LjUiIHk9IjI0IiB3aWR0aD0iNyIgaGVpZ2h0PSIxNiIgcng9IjEuNSIgZmlsbD0iI2ZmZmZmZiIvPgo8cmVjdCB4PSIzOSIgeT0iMTgiIHdpZHRoPSI3IiBoZWlnaHQ9IjIyIiByeD0iMS41IiBmaWxsPSIjZmZmZmZmIi8+Cjwvc3ZnPg==" />
+  <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+</head>
+<body>
+  <div id="app">
+    <div class="boot-loader"><div class="spinner"></div></div>
+  </div>
+  <script>
+    window.__API_BASE__ = "{{ api_base|default:'' }}";
+  </script>
+  <script type="module" src="{% static 'js/main.js' %}"></script>
+</body>
+</html>
