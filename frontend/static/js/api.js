@@ -123,9 +123,23 @@ export async function apiRequest(path, opts = {}) {
   return data;
 }
 
+// Sunucu JSON yerine HTML dondugunde (500/404 hata sayfasi, yanlis proxy
+// yönlendirmesi vb.) bunu tespit edip ham HTML'i ekrana basmak yerine
+// anlamli bir Turkce mesaj gostermek icin kullanilir.
+function looksLikeHtml(text) {
+  if (typeof text !== "string") return false;
+  const trimmed = text.trim().slice(0, 200).toLowerCase();
+  return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html") || trimmed.startsWith("<");
+}
+
 export function extractErrorMessage(data) {
   if (!data) return null;
-  if (typeof data === "string") return data;
+  if (typeof data === "string") {
+    if (looksLikeHtml(data)) {
+      return "Sunucudan beklenmeyen bir yanıt alındı (JSON yerine HTML döndü). Sunucu geçici olarak hata veriyor olabilir, lütfen birkaç saniye sonra tekrar deneyin.";
+    }
+    return data;
+  }
   if (data.detail) return data.detail;
   // DRF validation error: {field: [msg, ...]} ya da genel hata listesi
   const parts = [];
@@ -142,18 +156,43 @@ export const api = {
   patch: (path, body) => apiRequest(path, { method: "PATCH", body }),
   put: (path, body) => apiRequest(path, { method: "PUT", body }),
   del: (path) => apiRequest(path, { method: "DELETE" }),
+  // multipart/form-data gönderimi (dosya yükleme) için: body bir FormData olmalı.
+  postForm: (path, formData) => apiRequest(path, { method: "POST", body: formData, isForm: true }),
 };
 
 export async function login(email, password) {
-  const res = await fetch(`${API_BASE}/api/v1/auth/token/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/auth/token/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (networkErr) {
+    throw new ApiError("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edip tekrar deneyin.", 0, null);
+  }
+
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      // Sunucu JSON yerine HTML dondu (ör. 500 hata sayfasi) -- ham metni
+      // hataya tasiyip extractErrorMessage'in anlamli mesaja cevirmesini
+      // sagliyoruz, JSON.parse'in kendisini asla disariya sizdirmiyoruz.
+      data = text;
+    }
+  }
   if (!res.ok) {
     throw new ApiError(extractErrorMessage(data) || "E-posta veya şifre hatalı.", res.status, data);
+  }
+  if (!data || typeof data !== "object" || !data.access) {
+    throw new ApiError(
+      extractErrorMessage(data) || "Sunucudan beklenmeyen bir yanıt alındı. Lütfen tekrar deneyin.",
+      res.status,
+      data
+    );
   }
   tokenStore.setTokens(data.access, data.refresh);
   return data;

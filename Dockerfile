@@ -15,6 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN python manage.py makemigrations --noinput -v 2 || true
 RUN python manage.py collectstatic --noinput || true
 
 EXPOSE 8000

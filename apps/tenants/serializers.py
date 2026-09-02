@@ -37,5 +37,31 @@ class OfficeAdminSerializer(OfficeSerializer):
     """Sadece super admin'in kullanacagi, is_active/api_enabled'i de
     degistirebildigi tam yetkili serializer."""
 
+    user_count = serializers.SerializerMethodField()
+    client_count = serializers.SerializerMethodField()
+
     class Meta(OfficeSerializer.Meta):
+        fields = OfficeSerializer.Meta.fields + ["user_count", "client_count"]
         read_only_fields = ["slug", "created_at", "updated_at"]
+
+    def get_user_count(self, obj):
+        return obj.memberships.filter(is_active=True).count()
+
+    def get_client_count(self, obj):
+        return obj.clients_client_set.count()
+
+
+class SubscriptionPlanAdminSerializer(serializers.ModelSerializer):
+    """Süper admin'in paket/fiyatlandırma tanımlarını yönetmesi için."""
+
+    office_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubscriptionPlan
+        fields = [
+            "id", "code", "name", "max_users", "max_clients",
+            "price_monthly", "api_access_included", "features", "is_active", "office_count",
+        ]
+
+    def get_office_count(self, obj):
+        return obj.subscriptions.count()

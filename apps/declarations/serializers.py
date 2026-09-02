@@ -32,6 +32,7 @@ class DeclarationInstanceSerializer(serializers.ModelSerializer):
             "id", "client", "client_title", "declaration_type", "declaration_type_name",
             "period_label", "period_start", "period_end", "due_date",
             "status", "submitted_at", "completed_by", "notes", "is_overdue",
+            "declared_amount", "declared_tax_amount",
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "client", "declaration_type", "period_label", "period_start",

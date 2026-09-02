@@ -83,6 +83,21 @@ class DeclarationInstance(TenantScopedModel, TimeStampedModel):
     completed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
+
+    # Beyan edilen gercek rakamlar -- Hattat/Tek Hamle tarzi "beyanname
+    # capraz esleme / risk motoru" bu alanlar uzerinden calisir (bkz.
+    # apps.declarations.risk_engine). Ornekler: KDV'de beyan edilen matrah,
+    # Muhtasar'da bildirilen ucret/stopaj matrahi. Gercek GIB entegrasyonu
+    # olmadigindan bu degerler muhasebeci tarafindan beyanname
+    # onaylandiginda elle girilir.
+    declared_amount = models.DecimalField(
+        "Beyan Edilen Matrah/Tutar", max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text="Ornek: KDV matrahi, Muhtasar'da bildirilen brut ucret toplami.",
+    )
+    declared_tax_amount = models.DecimalField(
+        "Hesaplanan/Odenecek Vergi Tutari", max_digits=14, decimal_places=2, null=True, blank=True,
+    )
+
     notes = models.TextField(blank=True)
 
     class Meta:

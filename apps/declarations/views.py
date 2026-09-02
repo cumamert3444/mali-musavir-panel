@@ -16,6 +16,7 @@ from apps.declarations.serializers import (
     DeclarationInstanceSerializer,
     DeclarationTypeSerializer,
 )
+from apps.declarations.risk_engine import run_all_checks
 from apps.declarations.services import add_months, generate_instances_for_subscription
 
 
@@ -68,6 +69,17 @@ class DeclarationInstanceViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page or queryset, many=True)
         return self.get_paginated_response(serializer.data) if page is not None else Response(serializer.data)
+
+    @action(detail=False, methods=["get"], url_path="risk-report")
+    def risk_report(self, request):
+        """`GET .../declaration-instances/risk-report/` -- Beyanname Kontrol
+        & Çapraz Eşleştirme Motoru: Muhtasar/SGK uyumsuzluğu, matrah
+        dalgalanması ve beyan edilmemiş vadesi geçmiş kayıtlar için ofis
+        genelinde risk özetini döner (bkz. apps.declarations.risk_engine)."""
+        if request.office is None:
+            return Response({"detail": "Aktif ofis bulunamadi."}, status=404)
+        report = run_all_checks(request.office)
+        return Response(report)
 
 
 class ClientDeclarationSubscriptionViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):

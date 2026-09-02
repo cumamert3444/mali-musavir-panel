@@ -12,6 +12,20 @@ SECRET_KEY = config("SECRET_KEY", default="dev-only-insecure-secret-key")
 DEBUG = config("DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
+# CSRF_TRUSTED_ORIGINS: Django, ALLOWED_HOSTS'tan otomatik turetmez -- ozellikle
+# Django admin gibi cerez/CSRF tabanli formlar icin ayrica sema (https://) ile
+# birlikte tanimlanmasi gerekir. ALLOWED_HOSTS'taki her host icin https/http
+# varyantlarini otomatik uretiyoruz; CSRF_TRUSTED_ORIGINS env degiskeni ile
+# ek origin eklenebilir (orn. musavirasistani.com, www.musavirasistani.com).
+_csrf_extra = config("CSRF_TRUSTED_ORIGINS", default="", cast=Csv())
+CSRF_TRUSTED_ORIGINS = list(
+    {
+        *[f"https://{h}" for h in ALLOWED_HOSTS if h not in ("localhost", "127.0.0.1", "*")],
+        *[f"http://{h}" for h in ALLOWED_HOSTS if h in ("localhost", "127.0.0.1")],
+        *_csrf_extra,
+    }
+)
+
 # ---------------------------------------------------------------------------
 # Uygulamalar
 # ---------------------------------------------------------------------------
@@ -47,6 +61,9 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.payroll",
     "apps.legal_notices",
+    "apps.tax_debts",
+    "apps.pos_sync",
+    "apps.leads",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -234,6 +251,19 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@example.com")
 # ---------------------------------------------------------------------------
 SMS_PROVIDER_API_KEY = config("SMS_PROVIDER_API_KEY", default="")
 WHATSAPP_PROVIDER_API_KEY = config("WHATSAPP_PROVIDER_API_KEY", default="")
+
+# ---------------------------------------------------------------------------
+# Site / pazarlama sayfasi ayarlari
+# ---------------------------------------------------------------------------
+# Kanonik URL, sitemap.xml/robots.txt ve Open Graph etiketleri icin kullanilir.
+SITE_URL = config("SITE_URL", default="https://musavirasistani.com")
+
+# Bos birakilirsa ilgili ozellik (analytics, WhatsApp kabarcik butonu, harita)
+# sessizce gizlenir -- SAHTE/yer tutucu bir ID veya adres ASLA enjekte edilmez.
+GA4_MEASUREMENT_ID = config("GA4_MEASUREMENT_ID", default="")
+META_PIXEL_ID = config("META_PIXEL_ID", default="")
+WHATSAPP_CONTACT_NUMBER = config("WHATSAPP_CONTACT_NUMBER", default="")  # ornek: 905XXXXXXXXX
+OFFICE_PUBLIC_ADDRESS = config("OFFICE_PUBLIC_ADDRESS", default="")
 
 # ---------------------------------------------------------------------------
 # Beyanname hatirlatma ayarlari

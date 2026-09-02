@@ -8,7 +8,13 @@ import { openModal, closeModal, confirmDialog } from "../modal.js";
 
 export async function renderInvoiceDetail(rootEl, params) {
   const invoiceId = params.id;
-  const content = renderShell(rootEl, { pageTitle: "Fatura Detayı" });
+  let content = renderShell(rootEl, {
+    pageTitle: "Fatura Detayı",
+    breadcrumbs: [
+      { label: "Faturalar", path: "/invoices" },
+      { label: "Yükleniyor..." },
+    ],
+  });
   content.innerHTML = `<div class="loading-row">Yükleniyor...</div>`;
 
   let invoice;
@@ -19,6 +25,14 @@ export async function renderInvoiceDetail(rootEl, params) {
     content.innerHTML = `<div class="error-banner">Fatura bulunamadı.</div>`;
     return;
   }
+
+  content = renderShell(rootEl, {
+    pageTitle: "Fatura Detayı",
+    breadcrumbs: [
+      { label: "Faturalar", path: "/invoices" },
+      { label: invoice.invoice_number || "Fatura" },
+    ],
+  });
 
   paint();
 

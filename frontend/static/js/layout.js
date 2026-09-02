@@ -6,14 +6,20 @@ import { logout } from "./api.js";
 import { toastError } from "./toast.js";
 
 const NAV_ITEMS = [
-  { path: "/", label: "Panel", icon: "dashboard" },
+  { path: "/dashboard", label: "Panel", icon: "dashboard" },
   { path: "/clients", label: "Müşteriler", icon: "clients" },
   { path: "/invoices", label: "Faturalar", icon: "invoice" },
   { path: "/tasks", label: "Görevler", icon: "task" },
   { path: "/declarations", label: "Beyannameler", icon: "declaration" },
+  { path: "/tax-debts", label: "Borç Matrisi", icon: "chart" },
+  { path: "/pos-reports", label: "POS/ÖKC", icon: "bank" },
+  { path: "/documents", label: "Evraklar", icon: "document" },
+  { path: "/legal-notices", label: "e-Tebligatlar", icon: "alert" },
   { path: "/team", label: "Ekip", icon: "team" },
   { path: "/settings", label: "Ayarlar", icon: "settings" },
 ];
+
+const SUPERADMIN_NAV_ITEM = { path: "/admin", label: "Süper Admin", icon: "crown" };
 
 function initials(me) {
   if (!me) return "?";
@@ -22,7 +28,7 @@ function initials(me) {
   return (a + b).toUpperCase() || (me.email || "?")[0].toUpperCase();
 }
 
-export function renderShell(rootEl, { pageTitle = "", headerActionsHtml = "" } = {}) {
+export function renderShell(rootEl, { pageTitle = "", headerActionsHtml = "", breadcrumbs = null } = {}) {
   const me = state.me;
   const memberships = (me && me.memberships || []).filter((m) => m.is_active);
   const activeMembership = memberships.find((m) => String(m.office) === String(localStorage.getItem("mmp_active_office_id"))) || memberships[0];
@@ -53,6 +59,14 @@ export function renderShell(rootEl, { pageTitle = "", headerActionsHtml = "" } =
               <span>${item.label}</span>
             </a>`
           ).join("")}
+          ${
+            me && me.is_superuser
+              ? `<a href="${SUPERADMIN_NAV_ITEM.path}" data-link data-nav="${SUPERADMIN_NAV_ITEM.path}" class="nav-superadmin">
+                  <span class="nav-icon">${icons[SUPERADMIN_NAV_ITEM.icon]}</span>
+                  <span>${SUPERADMIN_NAV_ITEM.label}</span>
+                </a>`
+              : ""
+          }
         </nav>
         <div class="sidebar-footer">
           <div class="sidebar-user">
@@ -69,9 +83,25 @@ export function renderShell(rootEl, { pageTitle = "", headerActionsHtml = "" } =
       </aside>
       <div class="main">
         <div class="topbar">
-          <div class="flex gap-8" style="align-items:center;">
-            <button class="btn btn-ghost mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="Menü">${icons.menu}</button>
-            <h1>${escapeHtml(pageTitle)}</h1>
+          <div class="flex gap-8" style="align-items:center;flex-direction:column;align-items:flex-start;gap:2px;">
+            <div class="flex gap-8" style="align-items:center;">
+              <button class="btn btn-ghost mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="Menü">${icons.menu}</button>
+              <h1>${escapeHtml(pageTitle)}</h1>
+            </div>
+            ${
+              Array.isArray(breadcrumbs) && breadcrumbs.length
+                ? `<nav class="breadcrumbs" aria-label="Breadcrumb">
+                    ${breadcrumbs
+                      .map((b, i) => {
+                        const isLast = i === breadcrumbs.length - 1;
+                        const label = escapeHtml(b.label);
+                        if (isLast || !b.path) return `<span class="breadcrumb-current">${label}</span>`;
+                        return `<a href="${b.path}" data-link>${label}</a><span class="breadcrumb-sep">/</span>`;
+                      })
+                      .join("")}
+                  </nav>`
+                : ""
+            }
           </div>
           <div class="topbar-actions">${headerActionsHtml}</div>
         </div>

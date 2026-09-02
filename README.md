@@ -18,9 +18,12 @@ gorevlerini, faturalamasini ve bildirimlerini yonetir.
 - [Docker ile calistirma](#docker-ile-calistirma)
 - [API modunu aktiflestirme](#api-modunu-aktiflestirme)
 - [Modul haritasi](#modul-haritasi)
+- [Genel web sitesi (landing) ve SEO](#genel-web-sitesi-landing-ve-seo)
+- [Super Admin paneli](#super-admin-paneli)
 - [Beyanname takvimi nasil calisir](#beyanname-takvimi-nasil-calisir)
 - [Celery ile otomatik hatirlatmalar](#celery-ile-otomatik-hatirlatmalar)
 - [Demo veri](#demo-veri)
+- [ONEMLI: Canli ortam (Railway) dagitim notu](#onemli-canli-ortam-railway-dagitim-notu)
 - [Bilinen sinirlar / sonraki adimlar](#bilinen-sinirlar--sonraki-adimlar)
 
 ## Mimari ozet
@@ -143,10 +146,102 @@ curl -X POST http://127.0.0.1:8000/api/v1/auth/token/ \
 | `apps/documents` | Evrak yukleme/kategori |
 | `apps/tasks` | Gorev/kanban, yorumlar |
 | `apps/invoicing` | Ofis hizmet faturasi, satir, tahsilat |
-| `apps/notifications` | Panel-ici + e-posta/SMS/WhatsApp (hook) bildirimleri |
-| `apps/core` | Ortak altyapi: tenant middleware, izinler, denetim kaydi |
+| `apps/notifications` | Panel-ici + e-posta/SMS/WhatsApp (hook) bildirimleri, PDF ekstre gonderimi |
+| `apps/core` | Ortak altyapi: tenant middleware, izinler, denetim kaydi, SEO, genel `spa_view`/`robots.txt`/`sitemap.xml`/`status` |
+| `apps/tax_debts` | Vergi/SGK borc matrisi (mukellef bazinda borc kayitlari + CSV toplu import) |
+| `apps/pos_sync` | POS/ÖKC gun sonu raporu senkronizasyonu (aylik ozet + CSV toplu import) |
+| `apps/leads` | Herkese acik "Demo Isteyin" formundan gelen talepler (platform seviyesinde, tenant'a bagli degil) |
 
 Tum uc noktalarin tam listesi icin `/api/v1/docs/` (Swagger) adresine bakin.
+
+### Rakip mimarisinden ilham alinan modul ozeti (dürüst kapsam notu)
+
+Hattat Musavir / Tek Hamle gibi rakip programlardaki bazi ozellikler bu
+surumde **elle veri girisi + CSV toplu import + panel-ici takip/uyari**
+seklinde uygulandi. GIB/SGK'nin resmi kurumsal API'lerine gercek zamanli
+otomatik baglanti **yoktur** (sertifika/erisim anlasmasi gerektirir, bu
+kapsamin disindadir):
+
+- **e-Tebligat takibi** (`apps/legal_notices`): kayitlari elle veya CSV ile
+  girersiniz, panel cevap suresi yaklasinca listede one cikarir.
+- **Beyanname capraz kontrol / risk motoru** (`apps/declarations/risk_engine.py`):
+  panele zaten girilmis olan bordro (Muhtasar taban) ile beyan edilen
+  tutarlari karsilastirip `DeclarationInstance.risk_report` uc noktasinda
+  uyari uretir -- gercek e-fatura/GIB verisi degil, panel-ici veriye dayanir.
+- **Vergi/SGK borc matrisi** (`apps/tax_debts`): elle/CSV ile girilen borc
+  kayitlarini mukellef bazinda konsolide tablo halinde gosterir.
+- **POS/OKC gun sonu senkronizasyonu** (`apps/pos_sync`): CSV import ile
+  girilen gunluk POS raporlarini aylik ozetler.
+- **Otomatik ekstre gonderimi** (`apps/notifications/dispatch.py`): cari
+  hesap ekstresini gercek bir PDF (reportlab) olarak uretir ve e-posta ile
+  gonderir; WhatsApp gonderimi `WHATSAPP_PROVIDER_API_KEY` ortam degiskeni
+  tanimlanmadan **calismaz** ve acik bir hata firlatir (sessiz sahte basari
+  YOKTUR).
+
+## Genel web sitesi (landing) ve SEO
+
+`/` artik giris ekrani degil, herkese acik bir pazarlama sayfasidir
+(`frontend/static/js/pages/landing.js`). Giris ekrani `/login`'e, kayit
+`/register`'a tasindi; girisli kullanicilar panele `/dashboard` uzerinden
+erisir.
+
+Landing sayfasi icerdikleri: hero + ozellik kartlari, gercek/illustratif
+oldugu acikca belirtilen ornek kullanim senaryolari (isim/foto olmadan --
+gercek musteri yorumu **degildir**), fiyatlandirma kartlari + karsilastirma
+tablosu, SSS akordeonu, `#demo` talep formu (`POST /api/v1/leads/demo-request/`),
+guven rozetleri (SSL/KVKK), footer.
+
+Diger genel sayfalar: `/gizlilik-politikasi`, `/kvkk`, `/tesekkurler`
+(form sonrasi), `/durum` (gercek DB baglanti kontrolu yapan canli sistem
+durumu -- uydurma "%99.9 uptime" YOKTUR).
+
+SEO altyapisi (`apps/core/seo.py`, `apps/core/site_views.py`,
+`templates/spa.html`):
+
+- Her bilinen genel rota icin sunucu tarafinda farkli `<title>`/meta
+  description/robots/canonical (`spa_view`, `request.path`'i inceler);
+  girisli uygulama rotalari varsayilan olarak `noindex, nofollow`.
+- `/robots.txt`, `/sitemap.xml` gercek, calisan uc noktalardir.
+- Open Graph + Twitter Card (`frontend/static/img/og-image.png`), ana
+  sayfada SoftwareApplication + FAQPage JSON-LD.
+- GA4 (`GA4_MEASUREMENT_ID`) ve Meta Pixel (`META_PIXEL_ID`) betikleri
+  **sadece** ilgili ortam degiskeni tanimliysa render edilir -- sahte/bos
+  analytics ID YOKTUR.
+- WhatsApp kabarcik butonu + mobil iletisim cubugu (`contactWidgets.js`)
+  sadece `WHATSAPP_CONTACT_NUMBER` tanimliysa gorunur.
+- Google Maps embed'i sadece `OFFICE_PUBLIC_ADDRESS` tanimliysa gorunur;
+  tanimli degilse yer tutucu gosterilir (uydurma adres YOKTUR).
+
+Ilgili ortam degiskenleri (hepsi opsiyonel, bos birakilirsa ilgili ozellik
+sessizce gizlenir): `SITE_URL`, `GA4_MEASUREMENT_ID`, `META_PIXEL_ID`,
+`WHATSAPP_CONTACT_NUMBER`, `OFFICE_PUBLIC_ADDRESS`.
+
+## Super Admin paneli
+
+`/admin` (SPA rotasi, Django admin'den farkli) sadece `is_superuser=True`
+kullanicilara acik bir panel-ici yonetim ekranidir: tum ofisleri, kullanicilari
+ve abonelik paketlerini goruntuleme/duzenleme (`apps/tenants` icindeki
+`OfficeAdminViewSet`, `AdminUserViewSet`, `SubscriptionPlanAdminViewSet`,
+`PlatformStatsView`).
+
+Ilk SuperAdmin kullanicisini olusturmak icin (idempotent -- kullanici zaten
+varsa sifreyi DEGISTIRMEZ, sadece is_staff/is_superuser bayraklarini garanti
+eder). Bu komut Railway'in `startCommand`'ina eklendi, yani **her deploy'da
+otomatik calisir**; elle calistirmak isterseniz:
+
+```bash
+python manage.py seed_superadmin
+# veya farkli kimlik bilgisiyle:
+python manage.py seed_superadmin --email ornek@ofis.com --password GucluBirSifre123
+```
+
+Varsayilan kimlik bilgileri (parametre verilmezse):
+
+- E-posta: `cumamert3444@gmail.com`
+- Sifre: `Admin2026!`
+
+**Canli ortama aldiktan sonra bu sifreyi mutlaka degistirin** (Super Admin
+panelinden veya Django admin'den).
 
 ## Beyanname takvimi nasil calisir
 
@@ -208,6 +303,58 @@ python manage.py seed_demo_data
 Ornek bir ofis, sahip kullanici (`demo@ofis.test` / `demo12345`), 3 musteri
 ve KDV/Muhtasar beyanname takvimi olusturur.
 
+## ONEMLI: Canli ortam (Railway) dagitim notu
+
+**2026-09-02 tarihinde tespit edilen, halen surmekte olan bir sorun:**
+canli sitede (Railway) veritabani tablolari hic olusturulmamisti; bu yuzden
+giris/kayit istekleri `relation "accounts_user" does not exist` hatasiyla
+500 donduruyordu. Kok neden: Railway'in `preDeployCommand`/`startCommand`
+zincirinde `python manage.py makemigrations --noinput && ... migrate ...`
+calistirilirken, `makemigrations` adimi tum uygulamalarin migration planini
+yazdiktan hemen sonra (yaklasik 1-1.5 saniye icinde) sessizce sonlaniyor ve
+`migrate` adimina hic ulasilmiyordu -- 4 farkli deneme (preDeployCommand,
+startCommand, `||`/`;` ile hataya-dayanikli zincirler, `-v 2` ile ayrintili
+loglama) ayni sekilde basarisiz oldu. Bu davranisin tam nedeni (kaynak
+limiti / platform zaman asimi / baska bir sey) **kesin olarak
+dogrulanamadi** -- Postgres veri dizini dosya zaman damgalariyla dogrulandi:
+hicbir deploy denemesinde tablo olusturulmadi.
+
+**Uygulanan kalici duzeltme:** `makemigrations` adimi artik **Docker build
+asamasinda** (bkz. `Dockerfile`, `RUN python manage.py makemigrations
+--noinput -v 2 || true`) calistiriliyor -- bu adim, ayni Dockerfile'daki
+`collectstatic` adimi gibi, build sirasinda iki kez basariyla dogrulanmis
+guvenilir bir asamadir. Migration dosyalari artik imajin icine gomulur;
+container baslarken sadece daha hafif olan `migrate --noinput` calistirmasi
+yeterlidir (`startCommand`, bkz. Railway servis ayarlari). `preDeployCommand`
+bos birakildi; tum zincir artik `startCommand` icinde:
+
+```
+python manage.py makemigrations --noinput ; python manage.py migrate --noinput ; python manage.py seed_superadmin ; python manage.py collectstatic --noinput ; gunicorn config.wsgi:application --bind 0.0.0.0:8080 --workers 3
+```
+
+**Bu depodaki kod bu duzeltmeyi icerir, ancak canli siteye yansimasi icin
+yeni kodun push+deploy edilmesi gerekir** (bkz. dosya teslimati notlari --
+bu ortamdan dogrudan `git push` yapilamiyor). Push'tan sonra Railway
+otomatik yeniden deploy edecek ve loglarda artik `migrate`'in
+`Operations to perform` / `Applying ... OK` satirlarini gormeniz gerekir.
+
+**Push'tan once giris/kayit'i hemen calistirmak isterseniz**, Railway CLI
+kurulup hesaba baglandiktan sonra tek seferlik su komutla veritabani elle
+duzeltilebilir (deploy gerektirmez):
+
+```bash
+railway ssh -s web -e production -- python manage.py migrate --noinput -v 2
+```
+
+**Ozel alan adi / SSL notu:** `www.musavirasistani.com` Railway'e ozel alan
+adi olarak eklenmis ve CNAME kaydi dogru sekilde yayilmis (propagated)
+durumda, ancak SSL sertifikasi bu inceleme sirasinda hala "dogrulaniyor"
+asamasindaydi. Kok alan adi (`musavirasistani.com`, www'siz) mevcut Railway
+plani "servis basina ozel alan adi" limitine takildigi icin **eklenemedi**
+-- ya Railway planini yukseltip ikinci bir ozel alan adi eklemeniz, ya da
+DNS saglayicinizda kok alan adindan `www.musavirasistani.com`'a yonlendirme
+(redirect) kurmaniz gerekiyor.
+
 ## Bilinen sinirlar / sonraki adimlar
 
 Bu ilk surum bir **altyapi** sunar; asagidakiler bilincli olarak kapsam
@@ -219,9 +366,9 @@ haritasi" bolumune bakin):
   modelleri ile iliskilendirme yapisi hazir.
 - Gercek SMS/WhatsApp saglayici baglantisi (`apps/notifications/services.py`
   icinde acikca isaretli TODO'lar var, su an sadece log'a yaziliyor).
-- Super admin (SaaS sahibi) icin ayri bir yonetim arayuzu -- API tarafi
-  (`OfficeAdminViewSet`) hazir, arayuz yok.
 - Musteri portali (musterinin kendi evragini yukleyebildigi ayri giris).
+- Gercek, isimlendirilmis musteri referanslari/yorumlari -- landing
+  sayfasindaki ornekler bilincli olarak illustratif/rol-bazli tutuldu.
 - Otomatik test paketi genisletilmedi (bu surum manuel/statik olarak
   gozden gecirildi; `python manage.py test` icin iskelet hazir ama test
   dosyalari henuz yazilmadi).

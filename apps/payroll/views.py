@@ -1,6 +1,9 @@
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound
+from rest_framework.response import Response
 
 from apps.clients.models import Client
 from apps.core.audit import log_action
@@ -32,6 +35,29 @@ class EmployeeViewSet(_NestedUnderClientMixin, TenantScopedViewSetMixin, viewset
     def perform_create(self, serializer):
         instance = serializer.save(client=self.get_client())
         log_action(self.request, action="create", model_name="Employee", object_id=instance.id)
+
+    @action(detail=True, methods=["post"], url_path="mark-sgk-entry-notified")
+    def mark_sgk_entry_notified(self, request, client_pk=None, pk=None):
+        """SGK işe giriş bildiriminin fiilen yapıldığını (e-Bildirge
+        portalından) manuel olarak işaretler -- gerçek bir SGK portal
+        entegrasyonu değildir, bir kontrol listesi (checklist) adımıdır."""
+        employee = self.get_object()
+        employee.sgk_entry_notified = True
+        employee.sgk_entry_notified_at = timezone.now()
+        employee.save(update_fields=["sgk_entry_notified", "sgk_entry_notified_at"])
+        log_action(request, action="update", model_name="Employee", object_id=employee.id,
+                   metadata={"event": "sgk_entry_notified"})
+        return Response(EmployeeSerializer(employee).data)
+
+    @action(detail=True, methods=["post"], url_path="mark-sgk-exit-notified")
+    def mark_sgk_exit_notified(self, request, client_pk=None, pk=None):
+        employee = self.get_object()
+        employee.sgk_exit_notified = True
+        employee.sgk_exit_notified_at = timezone.now()
+        employee.save(update_fields=["sgk_exit_notified", "sgk_exit_notified_at"])
+        log_action(request, action="update", model_name="Employee", object_id=employee.id,
+                   metadata={"event": "sgk_exit_notified"})
+        return Response(EmployeeSerializer(employee).data)
 
 
 class _NestedUnderEmployeeMixin:

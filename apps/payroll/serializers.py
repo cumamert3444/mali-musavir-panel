@@ -24,6 +24,10 @@ class EmployeeSerializer(serializers.ModelSerializer):
             "id", "client", "full_name", "tc_no", "sgk_sicil_no", "position",
             "employment_type", "status", "hire_date", "termination_date",
             "gross_salary", "minimum_wage_support", "notes",
+            "sgk_entry_notified", "sgk_entry_notified_at", "sgk_exit_notified", "sgk_exit_notified_at",
             "payroll_records", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "client", "created_at", "updated_at"]
+        read_only_fields = [
+            "id", "client", "created_at", "updated_at",
+            "sgk_entry_notified_at", "sgk_exit_notified_at",
+        ]

@@ -3,16 +3,150 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mali Müşavirlik Ofis Paneli</title>
+  <title>{{ seo_title }}</title>
+  <meta name="description" content="{{ seo_description }}" />
+  <meta name="robots" content="{{ seo_robots }}" />
+  <link rel="canonical" href="{{ canonical_url }}" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Müşavir Asistanı" />
+  <meta property="og:title" content="{{ seo_title }}" />
+  <meta property="og:description" content="{{ seo_description }}" />
+  <meta property="og:url" content="{{ canonical_url }}" />
+  <meta property="og:image" content="{{ site_url }}{% static 'img/og-image.png' %}" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:locale" content="tr_TR" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="{{ seo_title }}" />
+  <meta name="twitter:description" content="{{ seo_description }}" />
+  <meta name="twitter:image" content="{{ site_url }}{% static 'img/og-image.png' %}" />
+
   <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+CjxyZWN0IHdpZHRoPSI2NCIgaGVpZ2h0PSI2NCIgcng9IjE0IiBmaWxsPSIjMjU2M2ViIi8+CjxwYXRoIGQ9Ik0xNiA0MCBMMTYgNDQgTDQ4IDQ0IEw0OCA0MCIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8cmVjdCB4PSIxOCIgeT0iMzAiIHdpZHRoPSI3IiBoZWlnaHQ9IjEwIiByeD0iMS41IiBmaWxsPSIjZmZmZmZmIi8+CjxyZWN0IHg9IjI4LjUiIHk9IjI0IiB3aWR0aD0iNyIgaGVpZ2h0PSIxNiIgcng9IjEuNSIgZmlsbD0iI2ZmZmZmZiIvPgo8cmVjdCB4PSIzOSIgeT0iMTgiIHdpZHRoPSI3IiBoZWlnaHQ9IjIyIiByeD0iMS41IiBmaWxsPSIjZmZmZmZmIi8+Cjwvc3ZnPg==" />
   <link rel="stylesheet" href="{% static 'css/app.css' %}" />
+
+  {% if seo_is_home %}
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Müşavir Asistanı",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "{{ site_url }}/",
+    "description": "{{ seo_description|escapejs }}",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "TRY",
+      "description": "14 gün ücretsiz deneme"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Müşavir Asistanı",
+      "url": "{{ site_url }}/"
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Müşavir Asistanı tam olarak nedir?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Mali müşavirlik ofislerinin müşteri takibi, beyanname takvimi, faturalama, evrak, e-Tebligat ve vergi borç takibini tek bir panelden yönetebildiği çok kiracılı (multi-tenant) bir SaaS panelidir."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Ücretsiz deneme süresi ne kadar ve kredi kartı gerekiyor mu?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "14 gün boyunca tüm özellikleri ücretsiz deneyebilirsiniz; kayıt olmak için kredi kartı bilgisi istenmez."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Verilerim ve müşterilerimin verileri güvende mi?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Veriler HTTPS/TLS ile şifrelenerek iletilir, ofis bazlı erişim izolasyonu (multi-tenant mimari) ile korunur. Detaylar için Gizlilik Politikamıza ve KVKK Aydınlatma Metnimize bakabilirsiniz."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "GİB/SGK sistemlerine otomatik bağlanıp veri çekiyor mu?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Hayır — GİB/SGK'nın resmi kurumsal API'lerine gerçek zamanlı otomatik bağlantı bu sürümde yoktur. Beyanname, e-Tebligat ve borç kayıtlarını elle veya CSV ile toplu olarak panele işlersiniz; panel bu veriler üzerinden takip, hatırlatma ve çapraz kontrol yapar."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Mevcut muhasebe yazılımımla (Logo/Mikro/Luca) entegre olur mu?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Panelin API modu ve API anahtarı sistemi, dış sistemlerin panel verisine programatik olarak erişmesine izin verir; muhasebe yazılımınızla köprü kurmak bu API üzerinden mümkündür."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Birden fazla ofis veya şube yönetebilir miyim?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Evet, mimari en baştan çok kiracılı (multi-tenant) tasarlanmıştır — bir kullanıcı birden fazla ofise üye olabilir ve ofisler arasında geçiş yapabilir."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "İptal edebilir miyim, taahhüt var mı?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Deneme paketinde herhangi bir taahhüt yoktur. Ücretli paketlere geçtiğinizde şartlar sözleşmenizde netleştirilir."
+        }
+      }
+    ]
+  }
+  </script>
+  {% endif %}
+
+  {% if ga4_measurement_id %}
+  <script async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_measurement_id }}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', '{{ ga4_measurement_id }}');
+  </script>
+  {% endif %}
+  {% if meta_pixel_id %}
+  <script>
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+    n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+    document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '{{ meta_pixel_id }}');
+    fbq('track', 'PageView');
+  </script>
+  {% endif %}
 </head>
 <body>
   <div id="app">
     <div class="boot-loader"><div class="spinner"></div></div>
   </div>
   <script>
-    window.__API_BASE__ = "{{ api_base|default:'' }}";
+    window.__API_BASE__ = "{{ api_base|default:''|escapejs }}";
+    window.__SITE_URL__ = "{{ site_url|escapejs }}";
+    window.__WHATSAPP_NUMBER__ = "{{ whatsapp_number|escapejs }}";
+    window.__OFFICE_ADDRESS__ = "{{ office_address|escapejs }}";
   </script>
   <script type="module" src="{% static 'js/main.js' %}"></script>
 </body>

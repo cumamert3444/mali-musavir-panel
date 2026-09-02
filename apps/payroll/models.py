@@ -44,6 +44,17 @@ class Employee(TimeStampedModel):
         help_text="5510 sayili kanun kapsamindaki tesvik/destek durumu.",
     )
 
+    # SGK ise giris/cikis bildirimi TAKIBI -- gercek SGK e-Bildirge portaline
+    # otomatik giris/bildirim YAPILMAZ (bu, mukellefin kendi SGK sifresi/
+    # e-imzasiyla resmi portala girmesini gerektirir ve otomasyonu hem
+    # teknik hem hukuki acidan bu urunun kapsami disidir). Bu alanlar,
+    # muhasebecinin ilgili SGK bildirimini fiilen yaptigini/onayladigini
+    # ISARETLEDIGI manuel bir kontrol listesi (checklist) gorevi gorur.
+    sgk_entry_notified = models.BooleanField("SGK İşe Giriş Bildirimi Yapıldı", default=False)
+    sgk_entry_notified_at = models.DateTimeField(null=True, blank=True)
+    sgk_exit_notified = models.BooleanField("SGK İşten Çıkış Bildirimi Yapıldı", default=False)
+    sgk_exit_notified_at = models.DateTimeField(null=True, blank=True)
+
     notes = models.TextField(blank=True)
 
     class Meta:

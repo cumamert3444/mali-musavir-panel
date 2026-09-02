@@ -10,12 +10,14 @@ export async function renderDashboard(rootEl) {
   content.innerHTML = `<div class="loading-row">Yükleniyor...</div>`;
 
   try {
-    const [upcomingDecl, myTasks, clientsPage, invoicesPage] = await Promise.all([
+    const [upcomingDecl, myTasks, clientsPage, invoicesPage, upcomingLegal] = await Promise.all([
       api.get("/api/v1/declaration-instances/upcoming/", { days: 14, page_size: 8 }),
       api.get("/api/v1/tasks/my_tasks/", { page_size: 50 }),
       api.get("/api/v1/clients/", { status: "active", page_size: 1 }),
       api.get("/api/v1/invoices/", { page_size: 50, ordering: "due_date" }),
+      api.get("/api/v1/legal-notifications/upcoming/", { days: 7, page_size: 8 }).catch(() => ({ results: [] })),
     ]);
+    const legalList = upcomingLegal.results || upcomingLegal || [];
 
     const declResults = upcomingDecl.results || upcomingDecl;
     const overdueCount = (declResults || []).filter((d) => d.is_overdue).length;
@@ -50,6 +52,11 @@ export async function renderDashboard(rootEl) {
           <div class="stat-label">Tahsil Edilmemiş Tutar</div>
           <div class="stat-value" style="font-size:20px;">${money(totalDue)}</div>
           <div class="stat-sub">${overdueInvoices.length} gecikmiş fatura</div>
+        </div>
+        <div class="stat-card ${legalList.length ? "accent-danger" : "accent-success"}">
+          <div class="stat-label">Yaklaşan e-Tebligat</div>
+          <div class="stat-value">${legalList.length}</div>
+          <div class="stat-sub"><a href="/legal-notices" data-link>Tümünü gör →</a></div>
         </div>
       </div>
 

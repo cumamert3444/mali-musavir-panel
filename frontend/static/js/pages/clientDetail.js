@@ -11,7 +11,13 @@ let activeTab = "overview";
 
 export async function renderClientDetail(rootEl, params) {
   const clientId = params.id;
-  const content = renderShell(rootEl, { pageTitle: "Müşteri Detayı" });
+  let content = renderShell(rootEl, {
+    pageTitle: "Müşteri Detayı",
+    breadcrumbs: [
+      { label: "Müşteriler", path: "/clients" },
+      { label: "Yükleniyor..." },
+    ],
+  });
   content.innerHTML = `<div class="loading-row">Yükleniyor...</div>`;
 
   let client;
@@ -22,6 +28,14 @@ export async function renderClientDetail(rootEl, params) {
     content.innerHTML = `<div class="error-banner">Müşteri bulunamadı.</div>`;
     return;
   }
+
+  content = renderShell(rootEl, {
+    pageTitle: "Müşteri Detayı",
+    breadcrumbs: [
+      { label: "Müşteriler", path: "/clients" },
+      { label: client.title || "Müşteri" },
+    ],
+  });
 
   activeTab = "overview";
   paint();
@@ -45,6 +59,7 @@ export async function renderClientDetail(rootEl, params) {
         ${tabBtn("contacts", "İlgili Kişiler")}
         ${tabBtn("contracts", "Sözleşmeler")}
         ${tabBtn("declarations", "Beyanname Abonelikleri")}
+        ${tabBtn("employees", "Personel / Bordro")}
         ${tabBtn("statement", "Cari Hesap Ekstresi")}
       </div>
 
@@ -69,6 +84,7 @@ export async function renderClientDetail(rootEl, params) {
     else if (activeTab === "contacts") renderContacts(tabEl, client);
     else if (activeTab === "contracts") renderContracts(tabEl, client);
     else if (activeTab === "declarations") renderDeclarations(tabEl, client);
+    else if (activeTab === "employees") renderEmployees(tabEl, client);
     else if (activeTab === "statement") renderStatement(tabEl, client);
   }
 
@@ -380,7 +396,10 @@ async function renderStatement(el, client) {
         <div class="stat-card ${data.summary.balance_due > 0 ? "accent-danger" : "accent-success"}"><div class="stat-label">Bakiye</div><div class="stat-value" style="font-size:19px;">${money(data.summary.balance_due)}</div></div>
       </div>
       <div class="card">
-        <div class="card-header"><h2>Hareketler</h2></div>
+        <div class="card-header">
+          <h2>Hareketler</h2>
+          <button class="btn btn-secondary btn-sm" id="send-statement-btn">${icons.chat} Ekstre Gönder</button>
+        </div>
         <div class="table-wrap">
           ${
             data.entries.length
@@ -407,8 +426,302 @@ async function renderStatement(el, client) {
         </div>
       </div>
     `;
+    el.querySelector("#send-statement-btn").addEventListener("click", () => openSendStatementModal(client));
   } catch (err) {
     toastError(err);
     el.innerHTML = `<div class="error-banner">Ekstre yüklenemedi.</div>`;
   }
+}
+
+function openSendStatementModal(client) {
+  openModal({
+    title: `Ekstre Gönder — ${client.title}`,
+    bodyHtml: `
+      <form id="send-statement-form">
+        <div class="field">
+          <label>Kanal</label>
+          <select name="channel">
+            <option value="email">E-posta ${client.email ? "" : "(kayıtlı e-posta yok)"}</option>
+            <option value="whatsapp">WhatsApp</option>
+          </select>
+        </div>
+        <div class="field"><label>Not (opsiyonel)</label><textarea name="note" placeholder="Boş bırakılırsa standart bir mesaj gönderilir."></textarea></div>
+        <p class="text-sm text-muted">
+          WhatsApp gönderimi, ofisinizde bir WhatsApp Business API sağlayıcısı (Meta/Twilio) yapılandırılmışsa çalışır;
+          yapılandırılmamışsa net bir hata mesajı görürsünüz.
+        </p>
+      </form>
+    `,
+    footerHtml: `<button class="btn btn-secondary" id="cancel-btn" type="button">Vazgeç</button><button class="btn btn-primary" type="submit" form="send-statement-form">Gönder</button>`,
+    onMount: (modal) => {
+      modal.querySelector("#cancel-btn").addEventListener("click", closeModal);
+      modal.querySelector("#send-statement-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          await api.post("/api/v1/notifications/dispatch-statement/", {
+            client: client.id,
+            channel: fd.get("channel"),
+            note: fd.get("note") || "",
+          });
+          closeModal();
+          toast("Ekstre gönderildi.", "success");
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    },
+  });
+}
+
+let expandedEmployeeId = null;
+
+async function renderEmployees(el, client) {
+  el.innerHTML = `<div class="loading-row">Yükleniyor...</div>`;
+  try {
+    const data = await api.get(`/api/v1/clients/${client.id}/employees/`, { page_size: 200 });
+    const employees = data.results || data;
+    el.innerHTML = `
+      <div class="card">
+        <div class="card-header">
+          <h2>Personel</h2>
+          <button class="btn btn-primary btn-sm" id="add-employee-btn">${icons.plus} Personel Ekle</button>
+        </div>
+        <div class="table-wrap">
+          ${
+            employees.length
+              ? `<table class="data-table">
+                  <thead><tr><th>Ad Soyad</th><th>Pozisyon</th><th>Tür</th><th>İşe Giriş</th><th>Brüt Maaş</th><th>Durum</th><th>SGK Bildirimi</th></tr></thead>
+                  <tbody>
+                    ${employees
+                      .map(
+                        (emp) => `
+                      <tr class="clickable" data-emp="${emp.id}">
+                        <td>${escapeHtml(emp.full_name)}</td>
+                        <td>${escapeHtml(emp.position || "—")}</td>
+                        <td>${escapeHtml(employmentTypeLabel(emp.employment_type))}</td>
+                        <td>${dateTR(emp.hire_date)}</td>
+                        <td>${emp.gross_salary != null ? money(emp.gross_salary) : "—"}</td>
+                        <td>${emp.status === "active" ? '<span class="badge badge-green">Çalışıyor</span>' : '<span class="badge badge-gray">Ayrıldı</span>'}</td>
+                        <td>
+                          ${emp.sgk_entry_notified ? '<span class="badge badge-green">Giriş ✓</span>' : '<span class="badge badge-amber">Giriş Bekliyor</span>'}
+                          ${emp.status === "terminated" ? (emp.sgk_exit_notified ? ' <span class="badge badge-green">Çıkış ✓</span>' : ' <span class="badge badge-red">Çıkış Bekliyor</span>') : ""}
+                        </td>
+                      </tr>
+                      <tr class="payroll-row" data-emp-row="${emp.id}" ${expandedEmployeeId === emp.id ? "" : 'style="display:none;"'}>
+                        <td colspan="7" style="background:var(--surface-alt);padding:16px;">
+                          <div class="flex-between" style="margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+                            <strong class="text-sm">Bordro Kayıtları</strong>
+                            <div class="flex gap-8">
+                              ${!emp.sgk_entry_notified ? `<button class="btn btn-secondary btn-sm" data-sgk-entry="${emp.id}">İşe Giriş Bildirildi Olarak İşaretle</button>` : ""}
+                              ${emp.status === "terminated" && !emp.sgk_exit_notified ? `<button class="btn btn-secondary btn-sm" data-sgk-exit="${emp.id}">İşten Çıkış Bildirildi Olarak İşaretle</button>` : ""}
+                              <button class="btn btn-secondary btn-sm" data-add-payroll="${emp.id}">${icons.plus} Dönem Ekle</button>
+                            </div>
+                          </div>
+                          ${renderPayrollTable(emp.payroll_records || [])}
+                        </td>
+                      </tr>`
+                      )
+                      .join("")}
+                  </tbody>
+                </table>`
+              : `<div class="empty-state"><h3>Henüz personel eklenmemiş</h3></div>`
+          }
+        </div>
+      </div>
+    `;
+
+    el.querySelectorAll("tr[data-emp]").forEach((row) => {
+      row.addEventListener("click", () => {
+        const id = Number(row.getAttribute("data-emp"));
+        expandedEmployeeId = expandedEmployeeId === id ? null : id;
+        renderEmployees(el, client);
+      });
+    });
+
+    el.querySelectorAll("[data-add-payroll]").forEach((btn) => {
+      btn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        openPayrollForm(client, Number(btn.getAttribute("data-add-payroll")), () => renderEmployees(el, client));
+      });
+    });
+
+    el.querySelectorAll("[data-sgk-entry]").forEach((btn) => {
+      btn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        try {
+          await api.post(`/api/v1/clients/${client.id}/employees/${btn.getAttribute("data-sgk-entry")}/mark-sgk-entry-notified/`, {});
+          toast("SGK işe giriş bildirimi işaretlendi.", "success");
+          renderEmployees(el, client);
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    });
+
+    el.querySelectorAll("[data-sgk-exit]").forEach((btn) => {
+      btn.addEventListener("click", async (evt) => {
+        evt.stopPropagation();
+        try {
+          await api.post(`/api/v1/clients/${client.id}/employees/${btn.getAttribute("data-sgk-exit")}/mark-sgk-exit-notified/`, {});
+          toast("SGK işten çıkış bildirimi işaretlendi.", "success");
+          renderEmployees(el, client);
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    });
+
+    el.querySelector("#add-employee-btn").addEventListener("click", () => openEmployeeForm(client, () => renderEmployees(el, client)));
+  } catch (err) {
+    toastError(err);
+    el.innerHTML = `<div class="error-banner">Personel listesi yüklenemedi.</div>`;
+  }
+}
+
+function renderPayrollTable(records) {
+  if (!records.length) {
+    return `<div class="text-muted text-sm">Henüz bordro kaydı yok.</div>`;
+  }
+  return `
+    <table class="data-table" style="background:var(--surface);">
+      <thead><tr><th>Dönem</th><th>Brüt</th><th>Net</th><th>İşveren Maliyeti</th><th>Durum</th></tr></thead>
+      <tbody>
+        ${records
+          .map(
+            (r) => `<tr>
+              <td>${escapeHtml(r.period_label)}</td>
+              <td>${r.gross_salary != null ? money(r.gross_salary) : "—"}</td>
+              <td>${r.net_salary != null ? money(r.net_salary) : "—"}</td>
+              <td>${r.employer_cost != null ? money(r.employer_cost) : "—"}</td>
+              <td><span class="badge badge-${r.status === "paid" ? "green" : r.status === "calculated" ? "blue" : "gray"}">${escapeHtml(r.status)}</span></td>
+            </tr>`
+          )
+          .join("")}
+      </tbody>
+    </table>
+  `;
+}
+
+function employmentTypeLabel(code) {
+  const map = { full_time: "Tam Zamanlı", part_time: "Kısmi Zamanlı", intern: "Stajyer", other: "Diğer" };
+  return map[code] || code;
+}
+
+function openEmployeeForm(client, onSaved) {
+  openModal({
+    title: "Yeni Personel",
+    bodyHtml: `
+      <form id="employee-form">
+        <div class="field"><label>Ad Soyad *</label><input type="text" name="full_name" required /></div>
+        <div class="field-row">
+          <div class="field"><label>TC Kimlik No</label><input type="text" name="tc_no" maxlength="11" /></div>
+          <div class="field"><label>SGK Sicil No</label><input type="text" name="sgk_sicil_no" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Pozisyon</label><input type="text" name="position" /></div>
+          <div class="field">
+            <label>Çalışma Türü</label>
+            <select name="employment_type">
+              <option value="full_time">Tam Zamanlı</option>
+              <option value="part_time">Kısmi Zamanlı</option>
+              <option value="intern">Stajyer</option>
+              <option value="other">Diğer</option>
+            </select>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>İşe Giriş Tarihi</label><input type="date" name="hire_date" /></div>
+          <div class="field"><label>Brüt Maaş (₺)</label><input type="number" step="0.01" name="gross_salary" /></div>
+        </div>
+        <div class="checkbox-row"><input type="checkbox" name="minimum_wage_support" id="mws" /><label for="mws" style="margin:0;">Asgari ücret desteği kapsamında</label></div>
+      </form>
+    `,
+    footerHtml: `<button class="btn btn-secondary" id="cancel-btn" type="button">Vazgeç</button><button class="btn btn-primary" type="submit" form="employee-form">Ekle</button>`,
+    onMount: (modal) => {
+      modal.querySelector("#cancel-btn").addEventListener("click", closeModal);
+      modal.querySelector("#employee-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        try {
+          await api.post(`/api/v1/clients/${client.id}/employees/`, {
+            full_name: fd.get("full_name"),
+            tc_no: fd.get("tc_no"),
+            sgk_sicil_no: fd.get("sgk_sicil_no"),
+            position: fd.get("position"),
+            employment_type: fd.get("employment_type"),
+            hire_date: fd.get("hire_date") || null,
+            gross_salary: fd.get("gross_salary") || null,
+            minimum_wage_support: fd.get("minimum_wage_support") === "on",
+          });
+          closeModal();
+          toast("Personel eklendi.", "success");
+          if (onSaved) onSaved();
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    },
+  });
+}
+
+function openPayrollForm(client, employeeId, onSaved) {
+  openModal({
+    title: "Bordro Dönemi Ekle",
+    bodyHtml: `
+      <form id="payroll-form">
+        <div class="field"><label>Dönem * <span class="text-muted">(örn: 2026-08)</span></label><input type="text" name="period_label" required placeholder="2026-08" /></div>
+        <div class="field-row">
+          <div class="field"><label>Brüt Maaş</label><input type="number" step="0.01" name="gross_salary" /></div>
+          <div class="field"><label>Net Maaş</label><input type="number" step="0.01" name="net_salary" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>SGK İşçi Payı</label><input type="number" step="0.01" name="sgk_employee_share" /></div>
+          <div class="field"><label>SGK İşveren Payı</label><input type="number" step="0.01" name="sgk_employer_share" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Gelir Vergisi</label><input type="number" step="0.01" name="income_tax" /></div>
+          <div class="field"><label>Damga Vergisi</label><input type="number" step="0.01" name="stamp_tax" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>İşverene Toplam Maliyet</label><input type="number" step="0.01" name="employer_cost" /></div>
+          <div class="field">
+            <label>Durum</label>
+            <select name="status">
+              <option value="draft">Taslak</option>
+              <option value="calculated">Hesaplandı</option>
+              <option value="paid">Ödendi</option>
+            </select>
+          </div>
+        </div>
+      </form>
+    `,
+    footerHtml: `<button class="btn btn-secondary" id="cancel-btn" type="button">Vazgeç</button><button class="btn btn-primary" type="submit" form="payroll-form">Kaydet</button>`,
+    onMount: (modal) => {
+      modal.querySelector("#cancel-btn").addEventListener("click", closeModal);
+      modal.querySelector("#payroll-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const num = (key) => (fd.get(key) === "" ? null : fd.get(key));
+        try {
+          await api.post(`/api/v1/clients/${client.id}/employees/${employeeId}/payroll-records/`, {
+            period_label: fd.get("period_label"),
+            gross_salary: num("gross_salary"),
+            net_salary: num("net_salary"),
+            sgk_employee_share: num("sgk_employee_share"),
+            sgk_employer_share: num("sgk_employer_share"),
+            income_tax: num("income_tax"),
+            stamp_tax: num("stamp_tax"),
+            employer_cost: num("employer_cost"),
+            status: fd.get("status"),
+          });
+          closeModal();
+          toast("Bordro dönemi eklendi.", "success");
+          if (onSaved) onSaved();
+        } catch (err) {
+          toastError(err);
+        }
+      });
+    },
+  });
 }

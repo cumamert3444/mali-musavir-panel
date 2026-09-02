@@ -11,6 +11,7 @@ from apps.core.tenant import office_access_allowed, resolve_office
 from apps.core.views import TenantScopedViewSetMixin
 from apps.invoicing.models import Payment, ServiceInvoice
 from apps.invoicing.serializers import PaymentSerializer, ServiceInvoiceSerializer
+from apps.invoicing.services import compute_client_statement
 
 
 class ServiceInvoiceViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
@@ -89,48 +90,14 @@ class ClientAccountStatementView(APIView):
             return Response({"detail": "Bu ofise erisim yetkiniz yok."}, status=403)
         client = get_object_or_404(Client, pk=client_pk, office=office)
 
-        invoices = ServiceInvoice.objects.filter(client=client).exclude(
-            status=ServiceInvoice.Status.CANCELED
-        ).prefetch_related("lines", "payments")
-
-        entries = []
-        for invoice in invoices:
-            entries.append({
-                "date": invoice.issue_date,
-                "type": "invoice",
-                "reference": invoice.invoice_number,
-                "description": invoice.period_label or "Hizmet faturasi",
-                "debit": invoice.total_amount,
-                "credit": 0,
-            })
-            for payment in invoice.payments.all():
-                entries.append({
-                    "date": payment.paid_at,
-                    "type": "payment",
-                    "reference": invoice.invoice_number,
-                    "description": f"Tahsilat ({payment.get_method_display()})",
-                    "debit": 0,
-                    "credit": payment.amount,
-                })
-
-        entries.sort(key=lambda e: (e["date"], e["type"] == "payment"))
-
-        running_balance = 0
+        statement = compute_client_statement(client)
+        entries = statement["entries"]
         for entry in entries:
-            running_balance += entry["debit"] - entry["credit"]
-            entry["balance"] = running_balance
             entry["date"] = entry["date"].isoformat()
-
-        total_invoiced = sum((inv.total_amount for inv in invoices), start=0)
-        total_paid = sum((inv.paid_amount for inv in invoices), start=0)
 
         return Response({
             "client": client.id,
             "client_title": client.title,
             "entries": entries,
-            "summary": {
-                "total_invoiced": total_invoiced,
-                "total_paid": total_paid,
-                "balance_due": total_invoiced - total_paid,
-            },
+            "summary": statement["summary"],
         })
