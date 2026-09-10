@@ -5,6 +5,8 @@ import { loadMe } from "./state.js";
 import { renderLanding } from "./pages/landing.js";
 import { renderLogin } from "./pages/login.js";
 import { renderRegister } from "./pages/register.js";
+import { renderForgotPassword } from "./pages/forgotPassword.js";
+import { renderResetPassword } from "./pages/resetPassword.js";
 import { renderDashboard } from "./pages/dashboard.js";
 import { renderAdmin } from "./pages/admin.js";
 import { renderClients } from "./pages/clients.js";
@@ -31,7 +33,7 @@ import { mountContactWidgets, unmountContactWidgets } from "./contactWidgets.js"
 // /dashboard'a yonlendirilir. Diger her rota (varsayilan) kimlik
 // dogrulama gerektirir.
 const ALWAYS_PUBLIC_PATHS = ["/", "/gizlilik-politikasi", "/kvkk", "/tesekkurler", "/durum"];
-const AUTH_ONLY_PATHS = ["/login", "/register"];
+const AUTH_ONLY_PATHS = ["/login", "/register", "/sifremi-unuttum", "/sifre-sifirla"];
 const SUPERADMIN_PATHS = ["/admin"];
 
 async function boot() {
@@ -79,6 +81,8 @@ async function boot() {
     .add("/", renderLanding)
     .add("/login", renderLogin)
     .add("/register", renderRegister)
+    .add("/sifremi-unuttum", renderForgotPassword)
+    .add("/sifre-sifirla", renderResetPassword)
     .add("/dashboard", renderDashboard)
     .add("/admin", renderAdmin)
     .add("/clients", renderClients)
