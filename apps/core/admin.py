@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from apps.core.models import AuditLog
+from apps.core.models import AccountCodeMemory, AuditLog
 
 
 @admin.register(AuditLog)
@@ -15,3 +15,10 @@ class AuditLogAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(AccountCodeMemory)
+class AccountCodeMemoryAdmin(admin.ModelAdmin):
+    list_display = ("office", "source_app", "match_key", "account_code", "hit_count", "last_used_at")
+    list_filter = ("source_app", "office")
+    search_fields = ("match_key", "account_code")

@@ -61,3 +61,54 @@ class AuditLog(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover - basit temsil
         return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.actor_label or 'sistem'} - {self.get_action_display()}"
+
+
+class AccountCodeMemory(models.Model):
+    """Ofis bazında ÖĞRENİLMİŞ "açıklama/karşı taraf deseni -> hesap kodu"
+    eşleşmeleri -- banka ekstresi işleme ve e-Fatura modüllerindeki "hesap
+    kodu öner" özelliğinin belleği.
+
+    ÖNEMLİ -- DÜRÜST KAPSAM NOTU: Bu bir büyük dil modeli (LLM/"yapay zeka")
+    DEĞİLDİR; Anthropic/Claude, OpenAI, Groq gibi hiçbir dış AI sağlayıcısına
+    bağlanmaz, API anahtarı gerektirmez, ücretsizdir ve internet erişimi
+    olmayan bir ortamda bile çalışır. Basit ama etkili bir "öğrenen kural
+    motoru"dur: muhasebeci bir işleme hesap kodu ATADIĞINDA/ONAYLADIĞINDA
+    (bkz. apps.core.account_learning.learn_mapping), bu eşleşme burada
+    birikir (`hit_count` artar); yeni bir kayıt geldiğinde (bkz. `suggest`)
+    aynı desen için en çok kullanılan hesap kodu ÖNERİ olarak sunulur --
+    otomatik/kesin bir atama değildir, muhasebeci her zaman değiştirebilir
+    ve öneriyi görmezden gelebilir. Öneriler kendi kendini beslemez: sadece
+    insanın onayladığı/girdiği kodlar öğrenilir, sistemin kendi önerileri
+    tekrar öğrenme verisine dönmez -- bu, yanlış bir önerinin kendini
+    büyütmesini engeller.
+    """
+
+    office = models.ForeignKey(
+        "tenants.Office", on_delete=models.CASCADE, related_name="account_code_memories"
+    )
+    source_app = models.CharField(
+        max_length=20,
+        choices=[("bank_statement", "Banka Ekstresi"), ("einvoice", "e-Fatura")],
+    )
+    match_key = models.CharField(
+        max_length=255, help_text="Normalize edilmiş açıklama/karşı taraf deseni."
+    )
+    account_code = models.CharField(max_length=20)
+    hit_count = models.PositiveIntegerField(default=1)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-hit_count", "-last_used_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["office", "source_app", "match_key", "account_code"],
+                name="unique_account_code_memory_entry",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["office", "source_app", "match_key"]),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.source_app}: {self.match_key} -> {self.account_code} ({self.hit_count}x)"

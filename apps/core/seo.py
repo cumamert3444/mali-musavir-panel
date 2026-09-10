@@ -16,13 +16,14 @@ SITE_NAME = "Müşavir Asistanı"
 
 DEFAULT_DESCRIPTION = (
     "Müşavir Asistanı; mali müşavirlik ofisleri için müşteri takibi, beyanname takvimi, "
-    "e-Tebligat izleme, vergi/SGK borç matrisi ve faturalama sunan yapay zekâ destekli SaaS panelidir."
+    "e-Tebligat izleme, vergi/SGK borç matrisi, faturalama ve öğrenen hesap kodu önerisi "
+    "sunan tek panelli SaaS'tır."
 )
 
 # path -> {title, description, robots (opsiyonel, varsayilan "index, follow")}
 PUBLIC_ROUTES: dict[str, dict] = {
     "/": {
-        "title": f"{SITE_NAME} — Mali Müşavirlikte Yapay Zeka Devrimi",
+        "title": f"{SITE_NAME} — Mali Müşavirlik Ofis Paneli",
         "description": DEFAULT_DESCRIPTION,
     },
     "/login": {

@@ -1,9 +1,12 @@
 from rest_framework import viewsets
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
 
-from apps.core.models import AuditLog
+from apps.core.account_learning import suggest_account_code
+from apps.core.models import AccountCodeMemory, AuditLog
 from apps.core.permissions import HasActiveOffice
-from apps.core.serializers import AuditLogSerializer
+from apps.core.serializers import AccountCodeMemorySerializer, AuditLogSerializer
 from apps.core.tenant import office_access_allowed, resolve_office
 
 
@@ -49,3 +52,33 @@ class AuditLogViewSet(TenantScopedViewSetMixin, viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["action", "model_name"]
     search_fields = ["actor_label", "model_name", "object_id", "path"]
     ordering_fields = ["created_at"]
+
+
+class AccountCodeMemoryViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
+    """Ofisin "öğrenilmiş" hesap kodu eşleşmeleri -- bkz.
+    apps.core.models.AccountCodeMemory ve apps.core.account_learning
+    docstring'leri (dürüst kapsam notu: LLM/dış AI sağlayıcı DEĞİL, basit
+    ücretsiz bir kural/frekans motoru).
+
+    Muhasebeci burada yanlış öğrenilmiş bir eşleşmeyi görüp silebilir
+    (`DELETE`) -- şeffaflık için salt-okunur değil, tam CRUD."""
+
+    queryset = AccountCodeMemory.objects.all()
+    serializer_class = AccountCodeMemorySerializer
+    filterset_fields = ["source_app"]
+    search_fields = ["match_key", "account_code"]
+    ordering_fields = ["hit_count", "last_used_at", "created_at"]
+
+    @action(detail=False, methods=["get"])
+    def suggest(self, request):
+        """`GET .../account-code-memory/suggest/?source_app=einvoice&text=...`
+        -- verilen serbest metin için (varsa) öğrenilmiş bir hesap kodu
+        önerisi döner. Tam eşleşme bulunamazsa `{"suggestion": null}` döner
+        -- bu normal bir durumdur, henüz o desen için hiçbir şey
+        öğrenilmemiş demektir."""
+        source_app = request.query_params.get("source_app")
+        text = request.query_params.get("text", "")
+        if source_app not in ("bank_statement", "einvoice"):
+            return Response({"detail": "'source_app' 'bank_statement' veya 'einvoice' olmalı."}, status=400)
+        suggestion = suggest_account_code(office=request.office, source_app=source_app, raw_text=text)
+        return Response({"suggestion": suggestion})
