@@ -98,6 +98,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 }
 .auth-sub { color: var(--text-muted); margin-bottom: 24px; font-size: 13px; }
 .auth-footer { margin-top: 18px; text-align: center; font-size: 12.5px; color: var(--text-muted); }
+.auth-inline-link { text-align: right; margin: -8px 0 16px; font-size: 12.5px; }
 
 /* ---------- Form elements ---------- */
 .field { margin-bottom: 16px; }
