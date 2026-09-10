@@ -3,6 +3,7 @@ import io
 
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 
@@ -19,10 +20,50 @@ CSV_COLUMNS = [
 ]
 
 
+def find_duplicate_approved(*, office, client, invoice_number, counterparty_tax_number, amount, exclude_pk=None):
+    """Bir fatura ONAYLANIRKEN/ARŞİVE ALINIRKEN mükerrer kontrolü.
+
+    ÖNEMLİ -- BİLİNÇLİ TASARIM KARARI: Bu kontrol yükleme/içe aktarma anında
+    DEĞİL, sadece bir kayıt "Onaylandı" durumuna geçerken çalışır -- aynı
+    dosya/fatura birden fazla kez yüklenebilir (ör. yanlışlıkla iki kez CSV
+    yüklenmesi ya da aynı faturanın önce taslak/beklemede halde düzenlenip
+    sonra onaylanması engellenmemeli). Sadece halihazırda ONAYLANMIŞ bir
+    kayıtla çakışma varsa engellenir. Eşleşme önceliği:
+      1. Aynı müşteri + aynı fatura no (en güvenilir işaret).
+      2. Fatura no yoksa/boşsa: aynı müşteri + aynı karşı taraf VKN/TCKN +
+         aynı tutar (ikincil, daha zayıf bir işaret)."""
+    qs = EInvoiceRecord.objects.filter(office=office, status=EInvoiceRecord.Status.APPROVED)
+    if exclude_pk:
+        qs = qs.exclude(pk=exclude_pk)
+    if client is not None and invoice_number:
+        existing = qs.filter(client=client, invoice_number=invoice_number).first()
+        if existing:
+            return existing
+    if client is not None and counterparty_tax_number and amount is not None:
+        existing = qs.filter(
+            client=client, counterparty_tax_number=counterparty_tax_number, amount=amount
+        ).first()
+        if existing:
+            return existing
+    return None
+
+
+def duplicate_error_message(existing: EInvoiceRecord) -> str:
+    return (
+        f"Bu fatura zaten onaylanmış görünüyor: {existing.client.title} — "
+        f"{existing.invoice_number or '(fatura no yok)'} — {existing.amount} "
+        f"({existing.issue_date or 'tarih yok'}). Mükerrer onay engellendi; "
+        f"gerçekten farklı bir faturaysa fatura numarasını/tutarı kontrol edin."
+    )
+
+
 class EInvoiceRecordViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     """e-Fatura Kayıtları -- bkz. apps.einvoices.models.EInvoiceRecord
     docstring'i (dürüst kapsam notu: CSV/Excel içe aktarma, gerçek zamanlı
-    GİB/TÜRMOB API entegrasyonu değil)."""
+    GİB/TÜRMOB API entegrasyonu değil).
+
+    Mükerrer kontrolü: yükleme/içe aktarma anında DEĞİL, bir kayıt
+    "Onaylandı" durumuna geçerken tetiklenir (bkz. find_duplicate_approved)."""
 
     queryset = EInvoiceRecord.objects.select_related("client")
     serializer_class = EInvoiceRecordSerializer
@@ -31,11 +72,46 @@ class EInvoiceRecordViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     search_fields = ["client__title", "invoice_number", "counterparty_title", "counterparty_tax_number"]
     ordering_fields = ["issue_date", "amount", "created_at"]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        date_from = self.request.query_params.get("issue_date_from")
+        date_to = self.request.query_params.get("issue_date_to")
+        if date_from:
+            queryset = queryset.filter(issue_date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(issue_date__lte=date_to)
+        return queryset
+
     def perform_create(self, serializer):
+        status = serializer.validated_data.get("status", EInvoiceRecord.Status.APPROVED)
+        if status == EInvoiceRecord.Status.APPROVED:
+            existing = find_duplicate_approved(
+                office=self.request.office,
+                client=serializer.validated_data.get("client"),
+                invoice_number=serializer.validated_data.get("invoice_number", ""),
+                counterparty_tax_number=serializer.validated_data.get("counterparty_tax_number", ""),
+                amount=serializer.validated_data.get("amount"),
+            )
+            if existing:
+                raise ValidationError({"detail": duplicate_error_message(existing)})
         instance = serializer.save(office=self.request.office, source=EInvoiceRecord.Source.MANUAL)
         log_action(self.request, action="create", model_name="EInvoiceRecord", object_id=instance.id)
 
     def perform_update(self, serializer):
+        new_status = serializer.validated_data.get("status", serializer.instance.status)
+        if new_status == EInvoiceRecord.Status.APPROVED:
+            existing = find_duplicate_approved(
+                office=serializer.instance.office,
+                client=serializer.validated_data.get("client", serializer.instance.client),
+                invoice_number=serializer.validated_data.get("invoice_number", serializer.instance.invoice_number),
+                counterparty_tax_number=serializer.validated_data.get(
+                    "counterparty_tax_number", serializer.instance.counterparty_tax_number
+                ),
+                amount=serializer.validated_data.get("amount", serializer.instance.amount),
+                exclude_pk=serializer.instance.pk,
+            )
+            if existing:
+                raise ValidationError({"detail": duplicate_error_message(existing)})
         instance = serializer.save()
         log_action(self.request, action="update", model_name="EInvoiceRecord", object_id=instance.id)
 
@@ -108,19 +184,38 @@ class EInvoiceRecordViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
                 continue
             try:
                 amount = row.get("amount", "").strip().replace(",", ".")
+                invoice_number = (row.get("invoice_number") or "").strip()
+                counterparty_tax_number = (row.get("counterparty_tax_number") or "").strip()
+                row_status = row.get("status", "approved").strip() if row.get("status", "").strip() in valid_statuses else "approved"
+
+                # Mükerrer kontrolü: yükleme her zaman kabul edilir, sadece
+                # bu satır ONAYLANMIŞ olarak içe aktarılacaksa ve halihazırda
+                # onaylanmış bir kayıtla çakışıyorsa engellenir (bkz.
+                # find_duplicate_approved docstring'i) -- satır atlanır, tüm
+                # dosya durdurulmaz.
+                if row_status == EInvoiceRecord.Status.APPROVED:
+                    existing = find_duplicate_approved(
+                        office=request.office, client=client, invoice_number=invoice_number,
+                        counterparty_tax_number=counterparty_tax_number,
+                        amount=amount or None,
+                    )
+                    if existing:
+                        errors.append(f"Satır {row_num}: {duplicate_error_message(existing)}")
+                        continue
+
                 record = EInvoiceRecord.objects.create(
                     office=request.office,
                     client=client,
                     doc_type=row.get("doc_type", "e_fatura").strip() if row.get("doc_type", "").strip() in valid_doc_types else "e_fatura",
                     direction=row.get("direction", "outgoing").strip() if row.get("direction", "").strip() in valid_directions else "outgoing",
-                    invoice_number=(row.get("invoice_number") or "").strip(),
+                    invoice_number=invoice_number,
                     counterparty_title=(row.get("counterparty_title") or "").strip(),
-                    counterparty_tax_number=(row.get("counterparty_tax_number") or "").strip(),
+                    counterparty_tax_number=counterparty_tax_number,
                     amount=amount,
                     currency=(row.get("currency") or "TRY").strip() or "TRY",
                     issue_date=(row.get("issue_date") or "").strip() or None,
                     period_label=(row.get("period_label") or "").strip(),
-                    status=row.get("status", "approved").strip() if row.get("status", "").strip() in valid_statuses else "approved",
+                    status=row_status,
                     notes=(row.get("notes") or "").strip(),
                     source=EInvoiceRecord.Source.CSV_IMPORT,
                 )
