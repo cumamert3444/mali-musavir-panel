@@ -105,6 +105,14 @@ class BankTransaction(TenantScopedModel, TimeStampedModel):
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     source = models.CharField(max_length=20, choices=Source.choices, default=Source.IMPORT)
+    suggested_by_ai = models.BooleanField(
+        default=False,
+        help_text=(
+            "Bu hesap kodu, ofisin daha önce onayladığı benzer işlemlerden "
+            "ÖĞRENİLEREK otomatik önerildi mi (bkz. apps.core.account_learning) "
+            "-- muhasebeci onaylayana/değiştirene kadar taslak sayılır."
+        ),
+    )
 
     raw_row_index = models.PositiveIntegerField(null=True, blank=True, help_text="Kaynak dosyadaki satır no (hata ayıklama için).")
     notes = models.TextField(blank=True)

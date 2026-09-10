@@ -11,10 +11,10 @@ class BankTransactionSerializer(serializers.ModelSerializer):
         fields = [
             "id", "statement", "client", "client_title",
             "transaction_date", "description", "direction", "amount", "balance_after",
-            "account_code", "status", "source", "raw_row_index", "notes",
+            "account_code", "status", "source", "suggested_by_ai", "raw_row_index", "notes",
             "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "statement", "source", "raw_row_index", "created_at", "updated_at"]
+        read_only_fields = ["id", "statement", "source", "suggested_by_ai", "raw_row_index", "created_at", "updated_at"]
 
 
 class BankStatementImportSerializer(serializers.ModelSerializer):

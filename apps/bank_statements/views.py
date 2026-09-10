@@ -14,6 +14,7 @@ from apps.bank_statements.serializers import (
     BankTransactionSerializer,
 )
 from apps.bank_statements.services import parse_statement_file
+from apps.core.account_learning import learn_mapping, suggest_account_code
 from apps.core.audit import log_action
 from apps.core.views import TenantScopedViewSetMixin
 
@@ -75,18 +76,26 @@ class BankStatementImportViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet
         created = 0
         for row in rows:
             try:
+                description = row.get("description") or ""
+                suggestion = suggest_account_code(
+                    office=instance.office, source_app="bank_statement", raw_text=description
+                )
+                account_code = suggestion["account_code"] if suggestion else ""
+                row_status = BankTransaction.Status.MATCHED if suggestion else BankTransaction.Status.DRAFT
                 BankTransaction.objects.create(
                     office=instance.office,
                     statement=instance,
                     client=instance.client,
                     transaction_date=row.get("transaction_date"),
-                    description=row.get("description") or "",
+                    description=description,
                     direction=row.get("direction") or BankTransaction.Direction.DEBIT,
                     amount=row.get("amount") or 0,
                     balance_after=row.get("balance_after"),
                     raw_row_index=row.get("raw_row_index"),
                     source=BankTransaction.Source.IMPORT,
-                    status=BankTransaction.Status.DRAFT,
+                    status=row_status,
+                    account_code=account_code,
+                    suggested_by_ai=bool(suggestion),
                 )
                 created += 1
             except Exception as exc:  # noqa: BLE001
@@ -162,11 +171,49 @@ class BankTransactionViewSet(TenantScopedViewSetMixin, viewsets.ModelViewSet):
     ordering_fields = ["transaction_date", "amount", "created_at"]
 
     def perform_create(self, serializer):
-        instance = serializer.save(office=self.request.office, source=BankTransaction.Source.MANUAL)
+        """Elle eklenen bir işlem için: hesap kodu VERİLMİŞSE bunu öğrenme
+        belleğine işler (bkz. apps.core.account_learning); VERİLMEMİŞSE ve
+        bir açıklama varsa, daha önce öğrenilmiş bir öneri olup olmadığına
+        bakar ve varsa otomatik doldurur (yine de taslak/onay akışı içinde
+        kalır, `suggested_by_ai=True` ile işaretlenir)."""
+        account_code = (serializer.validated_data.get("account_code") or "").strip()
+        description = serializer.validated_data.get("description") or ""
+        extra = {}
+        if account_code:
+            learn_mapping(
+                office=self.request.office, source_app="bank_statement",
+                raw_text=description, account_code=account_code,
+            )
+        elif description:
+            suggestion = suggest_account_code(
+                office=self.request.office, source_app="bank_statement", raw_text=description
+            )
+            if suggestion:
+                extra = {
+                    "account_code": suggestion["account_code"],
+                    "suggested_by_ai": True,
+                    "status": BankTransaction.Status.MATCHED,
+                }
+        instance = serializer.save(office=self.request.office, source=BankTransaction.Source.MANUAL, **extra)
         log_action(self.request, action="create", model_name="BankTransaction", object_id=instance.id)
 
     def perform_update(self, serializer):
-        instance = serializer.save()
+        """Muhasebeci `account_code` alanını değiştirdiğinde (boş bırakmadığı
+        sürece), bu insan-onaylı eşleşmeyi öğrenme belleğine işler --
+        sistemin kendi önerileri ASLA burada tekrar öğrenilmez, sadece
+        insanın girdiği/değiştirdiği değerler (bkz. apps.core.account_learning
+        docstring'i, kendi kendini pekiştirmeyi önleme notu)."""
+        extra = {}
+        if "account_code" in serializer.validated_data:
+            account_code = (serializer.validated_data.get("account_code") or "").strip()
+            extra["suggested_by_ai"] = False
+            if account_code:
+                description = serializer.validated_data.get("description", serializer.instance.description) or ""
+                learn_mapping(
+                    office=serializer.instance.office, source_app="bank_statement",
+                    raw_text=description, account_code=account_code,
+                )
+        instance = serializer.save(**extra)
         log_action(self.request, action="update", model_name="BankTransaction", object_id=instance.id)
 
     def perform_destroy(self, instance):
