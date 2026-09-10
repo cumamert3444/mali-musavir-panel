@@ -189,6 +189,10 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "user": "1000/min",
         "anon": "60/min",
+        # Sifremi unuttum: e-posta gonderimi tetikledigi icin kotuye
+        # kullanimi (toplu e-posta spam'i) sinirlamak icin ayri, dusuk bir
+        # oran -- IP basina.
+        "password-reset": "5/min",
     },
 }
 
