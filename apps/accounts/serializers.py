@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from rest_framework import serializers
 
@@ -106,3 +108,30 @@ class RegisterOfficeSerializer(serializers.Serializer):
         Membership.objects.create(user=owner, office=office, role=Membership.Role.OWNER)
 
         return {"office": office, "owner": owner}
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """`POST /api/v1/accounts/password-reset/` girdisi -- sadece e-posta.
+
+    GÜVENLİK NOTU: bu serializer/view, e-posta sistemde kayıtlı olsun ya da
+    olmasın HER ZAMAN aynı genel başarı mesajını döner (bkz. views.py) --
+    aksi halde "bu e-posta kayıtlı mı?" sorgulanabilir hale gelir (user
+    enumeration)."""
+
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """`POST /api/v1/accounts/password-reset-confirm/` girdisi -- e-postayla
+    gelen link'teki uid+token çiftiyle yeni şifreyi doğrular ve uygular."""
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_new_password(self, value):
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
+        return value
