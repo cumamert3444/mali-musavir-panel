@@ -11,6 +11,20 @@ let clientsCache = [];
 let currentClient = "";
 let currentDocType = "";
 let currentDirection = "";
+let currentDateFrom = "";
+let currentDateTo = "";
+
+// Sayfa her açıldığında (İşlenmiş Kayıtlar Arşivi) tarih filtrelerini
+// varsayılan olarak "içinde bulunulan aydan bir önceki ayın tamamı" ile
+// doldurur -- kullanıcı isterse elle değiştirip "Filtrele"ye basabilir.
+function previousMonthRange() {
+  const now = new Date();
+  const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastOfPrevMonth = new Date(firstOfThisMonth.getTime() - 86400000);
+  const firstOfPrevMonth = new Date(lastOfPrevMonth.getFullYear(), lastOfPrevMonth.getMonth(), 1);
+  const toISO = (d) => d.toISOString().slice(0, 10);
+  return { from: toISO(firstOfPrevMonth), to: toISO(lastOfPrevMonth) };
+}
 
 const DOC_TYPE_LABELS = {
   e_fatura: "e-Fatura",
@@ -62,11 +76,26 @@ export async function renderEInvoices(rootEl) {
             <option value="">Gelen + Giden</option>
             ${Object.entries(DIRECTION_LABELS).map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}
           </select>
+          <label class="text-sm text-muted" style="display:flex;align-items:center;gap:6px;">
+            Başlangıç
+            <input type="date" id="einvoice-date-from" />
+          </label>
+          <label class="text-sm text-muted" style="display:flex;align-items:center;gap:6px;">
+            Bitiş
+            <input type="date" id="einvoice-date-to" />
+          </label>
+          <button class="btn btn-secondary btn-sm" id="einvoice-date-filter-btn" type="button">Filtrele</button>
         </div>
       </div>
       <div class="table-wrap" id="einvoice-table-wrap"><div class="loading-row">Yükleniyor...</div></div>
     </div>
   `;
+
+  const defaultRange = previousMonthRange();
+  currentDateFrom = defaultRange.from;
+  currentDateTo = defaultRange.to;
+  content.querySelector("#einvoice-date-from").value = currentDateFrom;
+  content.querySelector("#einvoice-date-to").value = currentDateTo;
 
   try {
     const clientsData = await api.get("/api/v1/clients/", { page_size: 200, ordering: "title" });
@@ -92,6 +121,11 @@ export async function renderEInvoices(rootEl) {
   });
   content.querySelector("#new-einvoice-btn").addEventListener("click", () => openEInvoiceForm(null, () => { loadEInvoices(content); loadSummary(content); }));
   content.querySelector("#import-csv-btn").addEventListener("click", () => openImportModal(() => { loadEInvoices(content); loadSummary(content); }));
+  content.querySelector("#einvoice-date-filter-btn").addEventListener("click", () => {
+    currentDateFrom = content.querySelector("#einvoice-date-from").value || "";
+    currentDateTo = content.querySelector("#einvoice-date-to").value || "";
+    loadEInvoices(content);
+  });
 
   await Promise.all([loadSummary(content), loadEInvoices(content)]);
 }
@@ -128,6 +162,8 @@ async function loadEInvoices(content) {
       client: currentClient || undefined,
       doc_type: currentDocType || undefined,
       direction: currentDirection || undefined,
+      issue_date_from: currentDateFrom || undefined,
+      issue_date_to: currentDateTo || undefined,
       page_size: 200,
       ordering: "-issue_date",
     });

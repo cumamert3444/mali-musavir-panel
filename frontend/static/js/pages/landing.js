@@ -21,8 +21,8 @@ const FEATURES = [
   },
   {
     icon: "ai",
-    title: "Mevzuat Asistanı",
-    desc: "Güncel beyanname takvimini ve mevzuat hatırlatmalarını yapay zekâ destekli asistanla takip edin.",
+    title: "Öğrenen Hesap Kodu Önerisi",
+    desc: "Banka ekstresi ve fatura kayıtlarında seçtiğiniz hesap kodlarını hatırlar; aynı açıklama tekrar geldiğinde otomatik önerir. Dış bir yapay zeka servisi değil, kendi sunucunuzda ücretsiz çalışan bir öğrenme motoru.",
   },
   {
     icon: "chart",
@@ -163,8 +163,8 @@ export async function renderLanding(rootEl) {
 
       <section class="landing-hero">
         <div class="landing-hero-inner">
-          <span class="landing-eyebrow">${icons.ai} Yapay zekâ destekli mali müşavirlik paneli</span>
-          <h1>Mali Müşavirlikte<br/>Yapay Zeka Devrimi</h1>
+          <span class="landing-eyebrow">${icons.ai} Hesap kodunu öğrenen mali müşavirlik paneli</span>
+          <h1>Mali Müşavirlikte<br/>Tek Panel, Öğrenen Otomasyon</h1>
           <p class="landing-hero-sub">
             Müşteri takibinden beyanname takvimine, e-Tebligat izlemeden vergi borcu matrisine kadar
             ofisinizin tüm operasyonunu tek panelden yönetin — Hattat Müşavir ve Tek Hamle'nin en güçlü

@@ -19,6 +19,7 @@ export async function renderLogin(rootEl) {
             <label for="password">Şifre</label>
             <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="••••••••" />
           </div>
+          <div class="auth-inline-link"><a href="/sifremi-unuttum" data-link>Şifremi unuttum</a></div>
           <button type="submit" class="btn btn-primary btn-block" id="login-submit">Giriş Yap</button>
         </form>
         <div class="auth-footer">Henüz hesabınız yok mu? <a href="/register" data-link>Ofisinizi kaydedin</a></div>

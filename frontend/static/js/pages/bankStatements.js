@@ -258,7 +258,10 @@ async function openReviewModal(statementId, onSaved) {
               <td>${escapeHtml(tx.description || "—")}</td>
               <td>${DIRECTION_LABELS[tx.direction] || tx.direction}</td>
               <td>${money(tx.amount)}</td>
-              <td><input type="text" class="tx-account-code" data-tx-id="${tx.id}" value="${escapeHtml(tx.account_code || "")}" placeholder="Örn. 770" style="width:90px;" /></td>
+              <td>
+                <input type="text" class="tx-account-code" data-tx-id="${tx.id}" value="${escapeHtml(tx.account_code || "")}" placeholder="Örn. 770" style="width:90px;" />
+                ${tx.suggested_by_ai ? `<span class="badge badge-gray" style="margin-left:4px;" title="Bu kod, ofisinizin daha önce onayladığı benzer işlemlerden öğrenilerek otomatik önerildi. Doğruysa aynen bırakıp onaylayın, yanlışsa değiştirin.">🤖 önerildi</span>` : ""}
+              </td>
               <td><span class="badge badge-${color}" data-tx-status="${tx.id}">${escapeHtml(label)}</span></td>
             </tr>`;
           })
